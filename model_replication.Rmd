@@ -1,0 +1,100 @@
+---
+title: "Model Replication"
+author: "Kyle Rohde"
+date: "9/10/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+The purpose of this document is to replicate "The Impact of Covid-19 Testing on College Campuses" research done by Zhuoting Yu, Akane B. Fujimoto, Pinar Keskinocak, and Julie Swann.
+
+The model created considers various states to describe a student's status as it relates to Covid-19 infection. The states are as follows:
+
+$S$: susceptible
+
+$I_a$: infected and asymptomatic
+
+$I_s$: infected and symptomatic
+
+$TFN_{a(s)}$: infected and asymptomatic (symptomatic), has been tested with false negative results
+
+$TISO^+_{a(s)}$: infected and asymptomatic (symptomatic), has been tested and currently in isolation
+
+$TISO^-_{a(s)}$: infected and asymptomatic (symptomatic), has been tested and currently not in isolation
+
+$RC$: recovered and confirmed, i.e., has been diagnosed previously
+
+$RU$: recovered and unknown, i.e., has not been diagnosed previously
+
+The follow equations describe the fraction of individuals in each state over time
+
+$$
+S = -\beta_aS(I_a + TFN_a + TISO_a^-)-\beta_sS(I_s+TFN_s+TISO_s^-)
+$$
+
+$$
+I_a= (1-p_0) \times [\beta_aS(I_a+TFN_a+TISO_a^-)+\beta_sS(I_s+TFN_s+TISO_s^-)]-T_{pcr} \times I_a-T{rap} \times I_a -\gamma_aI_a
+$$
+
+$$
+I_s = p_0 \times [\beta_aS(I_a+TFN_a+TISO_a^-)+\beta_sS(I_s+TFN_s+TISO_s^-)] − T_{pcr} × I_s − T_{rap} × I_s − γ_sI_s
+$$
+
+$$
+TFN_a =T_{pcr} × FN_{pcr_a} × I_a + T_{rap} × FN_{rap_a} × I_a − γ_a × TFN_a
+$$
+
+$$
+TFN_s =T_{pcr} × FN_{pcr_s} × I_s + T_{rap} × FN_{rap_s} × I_s − γ_s × TFN_s
+$$
+
+$$
+TISO^+_a =C_a × [T_{pcr} × FN_{pcr_a} × I_a + T_{rap} × FN_{rap_a} × I_a] − γ_a × TISO^+_a
+$$
+
+$$
+TISO^+_s =C_s × [T_{pcr} × FN_{pcr_s} × I_s + T_{rap} × FN_{rap_s} × I_s] − γ_s × TISO^+_s
+$$
+
+$$
+TISO^−_a =(1 − C_a) × [T_{pcr} × FN_{pcr_a} × I_a + T_{rap} × FN_{rap_a} × I_a] − γ_a × TISO^−_a
+$$
+
+$$
+TISO^−_s =(1 − C_s) × [T_{pcr} × FN_{pcr_s} × I_s + T_{rap} × FN_{rap_s} × I_s] − γ_s × TISO^−_s
+$$
+
+Below are the variable definitions
+
+|          Parameter         |                                             Description                                             |           Value          |
+|:--------------------------:|:---------------------------------------------------------------------------------------------------:|:------------------------:|
+|     $\beta_a$,$\beta_s$    | Transmission rate due to contact between susceptible and asymptomatic/symptomatic infected subjects |          0.1,0.2         |
+|          $\gamma$          |                              Rate of recovery of an infected individual                             |            0.1           |
+|            $p_0$           |                            Proportion of infections that are symptomatic                            |            0.5           |
+|         $C_a$,$C_s$        |        Isolation compliance rate for asymptomatic/symptomatic infected and tested individuals       |         0.7, 0.9         |
+|  $FN_{pcr_a}$,$FN_{pcr_s}$ |               False negative rate of a PCR test for asymptomatic/symptomatic patients               |         15%, 15%         |
+| $FN_{rap_a}$, $FN_{rap_s}$ |              False negative rate of a rapid test for asymptomatic/symptomatic patients              |         30%, 30%         |
+| $FP_{pcr_a}$, $FP_{pcr_s}$ |               False positive rate of a PCR test for asymptomatic/symptomatic patients               |          5%, 5%          |
+| $FP_{rap_a}$, $FP_{rap_s}$ |               False positive ate of a rapid test for asymptomatic/symptomatic patients              |         10%, 10%         |
+|          $T_{pcr}$         |                         Percentage of students that have access to PCR tests                        | Defined in each scenario |
+|  $T_{rap_a}$, $T_{rap_s}$  |                    Percentage of students that have access to rapid antigen tests                   | Defined in each scenario |
+
+* Baseline: No testing
+* $PCR_{100}$: PCR tests available to 100% of eligible student body per week
+* $RA_{100}$: Rapid antigen tests available to 100% of the eligible student body per week
+* $PCR_{50}$: PCR tests available to 50% of the eligible student body per week
+* $RA_{50}$: Rapid antigen tests available to 50% of the eligible student body per week
+* $PCR_{33}$: PCR tests available to 33% of the eligible student body per week
+* $RA_{33}$: Rapid antigen tests available to 33% of the eligible student body per week
+
+
+
+
+
+
+
+
