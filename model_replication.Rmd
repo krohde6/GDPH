@@ -91,7 +91,31 @@ Below are the variable definitions
 * $PCR_{33}$: PCR tests available to 33% of the eligible student body per week
 * $RA_{33}$: Rapid antigen tests available to 33% of the eligible student body per week
 
+```{r}
+# Constants
+ba = 0.1        # transmission rate due to contact of asymptomatic patient
+bs = 0.2        # transmission rate due to contact of symptomatic patient
+gamma = 0.1     # rate of recovery for an infected individual
+p0 = 0.5        # proportion of infections that are symptomatic
+ca = 0.7        # isolation compliance asymptomatic infected + tested patients
+cs = 0.9        # isolation compliance symptomatic infected + tested patients
+FNpcr_a = 0.15  # false negative rate of a PCR test for asymptomatic patients
+FNpcr_s = 0.15  # false negative rate of a PCR test for symptomatic patients
+FNrap_a = 0.30  # false negative rate of a rapid test for asymptomatic patients
+FNrap_s = 0.30  # false negative rate of a rapid test for symptomatic patients
+FPpcr_a = 0.05  # false positive rate of a PCR test for asymptomatic patients
+FPpcr_s = 0.05  # false positive rate of a PCR test for symptomatic patients
+FPrap_a = 0.10  # false positive rate of a rapid test for asymptomatic patients
+FPrap_s = 0.10  # false positive rate of a rapid test for symptomatic patients
 
+# Initial values
+S = 0.895       # initial susceptibility of the student body
+I_s = 0.0025    # initial infected and symptomatic
+I_a = 0.0025    # initial infected and asymptomatic
+R_u = 0.10      # initial recovered unknown
+
+n = 15000       # student population
+```
 
 
 
