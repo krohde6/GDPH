@@ -176,7 +176,7 @@ TISO_sn_dot <- function(c_s, T_pcr, FNpcr_s, I_s, T_rap, FNrap_s, gamma, TISO_sn
 #Creating a program that will loop through and add susceptibility
 
 
-replicate_model <- function(S_0, I_a, I_s, b_a, b_s, p0, c_a, c_s, T_pcr, T_rap, gamma, TFN_a, TFN_s, TISO_an, TISO_sn, TISO_ap, TISO_sp, FNpcr_a, FNpcr_s, FNrap_a, FNrap_s, num_weeks) {
+replicate_model <- function(total_weeks = c(), S_0, I_a, I_s, b_a, b_s, p0, c_a, c_s, T_pcr, T_rap, gamma, TFN_a, TFN_s, TISO_an, TISO_sn, TISO_ap, TISO_sp, FNpcr_a, FNpcr_s, FNrap_a, FNrap_s, num_weeks) {
   S_dot = s_dot(b_a, S_0, I_a, TFN_a, TISO_an, b_s, I_s, TFN_s, TISO_sn)
   I_a_dot = I_a_dot(p0, b_a, S_0, I_a, TFN_a, TISO_an, b_s, I_s, TFN_s, TISO_sn, T_pcr, T_rap, gamma)
   I_s_dot = I_s_dot(p0, b_a, S_0, I_a, TFN_a, TISO_an, b_s, I_s, TFN_s, TISO_sn, T_pcr, T_rap, gamma)
@@ -188,16 +188,19 @@ replicate_model <- function(S_0, I_a, I_s, b_a, b_s, p0, c_a, c_s, T_pcr, T_rap,
   TISO_sn_dot = TISO_sn_dot(c_s, T_pcr, FNpcr_s, I_s, T_rap, FNrap_s, gamma, TISO_sn)
   
   weekly_prediction <- c(S_0 + S_dot, I_a + I_a_dot, I_s + I_s_dot, TFN_a + TFN_a_dot, TFN_s + TFN_s_dot, TISO_ap + TISO_ap_dot, TISO_sp + TISO_sp_dot, TISO_an + TISO_an_dot, TISO_sn + TISO_sn_dot)
+  total_weeks = append(total_weeks, weekly_prediction)
 
 # may need to adjust the while function -- think about the logic here 
   
-  while(num_weeks > 1) {
-    return(replicate_model(S_0 + S_dot, I_a + I_a_dot, I_s + I_s_dot, b_a, b_s, p0, c_a, c_s, T_pcr, T_rap, gamma, TFN_a + TFN_a_dot, TFN_s + TFN_s_dot, TISO_an + TISO_an_dot, TISO_sn + TISO_sn_dot, TISO_ap + TISO_ap_dot, TISO_sp + TISO_sp_dot, FNpcr_a, FNpcr_s, FNrap_a, FNrap_s, num_weeks - 1))
+  if(num_weeks == 1) {
+    return(total_weeks)
+  } else {
+    return(replicate_model(total_weeks, S_0 + S_dot, I_a + I_a_dot, I_s + I_s_dot, b_a, b_s, p0, c_a, c_s, T_pcr, T_rap, gamma, TFN_a + TFN_a_dot, TFN_s + TFN_s_dot, TISO_an + TISO_an_dot, TISO_sn + TISO_sn_dot, TISO_ap + TISO_ap_dot, TISO_sp + TISO_sp_dot, FNpcr_a, FNpcr_s, FNrap_a, FNrap_s, num_weeks - 1))
   }
-  
 }
 
-replicate_model(0.895, 0.0025, 0.0025, 0.1, 0.2, 0.5, 0.7, 0.9, 1, 0, 0.1, 0, 0, 0, 0, 0, 0, 0.15, 0.15, 0.30, 0.30, 5)
+
+result = replicate_model(total_weeks = c(), 0.895, 0.0025, 0.0025, 0.1, 0.2, 0.5, 0.7, 0.9, 1, 0, 0.1, 0, 0, 0, 0, 0, 0, 0.15, 0.15, 0.30, 0.30, 5); result
 
 replicate_model(0.895, 0.0025, 0.0025, 0.1, 0.2, 0.5, 0.7, 0.9, 0.5, 0, 0.1, 0, 0, 0, 0, 0, 0, 0.15, 0.15, 0.30, 0.30, 5)
 
