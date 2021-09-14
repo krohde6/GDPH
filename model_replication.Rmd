@@ -125,6 +125,133 @@ TISO_sp = 0     # initial population tested with infection, in isolation, sympto
 n = 15000       # student population
 ```
 
+The following creates a function that can be used to calculate values for each of the 9 equations used in the "The Impact of Covid-19 Testing on College Campuses" week over week. The function allows the user to input initial values for each of the specified parameters used in the research done by Zhuoting Yu, Akane B. Fujimoto, Pinar Keskinocak, and Julie Swann, as well as input the number of weeks that the user would like to forecast for. The function generates the predicted values for the following week and then recursively calls on itself using the values predicted for the next week. This allows the model to forecast for multiple weeks at a time as opposed to manually calculating each of the values each week, as well as allows the user to input values as data becomes known (basically allowing them to reset the initial values at any point in time).
+
+```{r}
+#Creating a program that will loop through and add susceptibility
+
+replicate_model <- function(S, I_a, I_s, ba, bs, p0, ca, cs, Tpcr, Trap, gamma, TFN_a_initial, TFN_s_initial, TISOneg_a_initial, TISOneg_s_initial, TISOpos_a_initial, TISOpos_s_initial, FNpcr_a, FNpcr_s, FNrap_a, FNrap_s, num_weeks) {
+  S_dot = -ba*S*(I_a + TFN_a_initial + TISOneg_a_initial) - bs*S*(I_s + TFN_s_initial + TISOneg_s_initial)
+  I_a_dot = (1 - p0)*(ba*S*(I_a + TFN_a_initial + TISOneg_a_initial) + bs*S*(I_s + TFN_s_initial + TISOneg_s_initial)) - Tpcr*I_a - Trap*I_a - gamma*I_a
+  I_s_dot = (1 - p0)*(ba*S*(I_a + TFN_a_initial + TISOneg_a_initial) + bs*S*(I_s + TFN_s_initial + TISOneg_s_initial)) - Tpcr*I_s - Trap*I_s - gamma*I_s
+  TFN_a = Tpcr*FNpcr_a*I_a + Trap*FNrap_a*I_a - gamma*TFN_a_initial
+  TFN_s = Tpcr*FNpcr_s*I_s + Trap*FNrap_s*I_s - gamma*TFN_s_initial
+  TISOpos_a = ca*(Tpcr*FNpcr_a*I_a + Trap*FNrap_a*I_a) - gamma*TISOpos_a_initial
+  TISOpos_s = cs*(Tpcr*FNpcr_s*I_s + Trap*FNrap_s*I_s) - gamma*TISOpos_s_initial
+  TISOneg_a = (1 - ca)*(Tpcr*FNpcr_a*I_a + Trap*FNrap_a*I_a) - gamma*TISOneg_a_initial
+  TISOneg_s = (1 - cs)*(Tpcr*FNpcr_s*I_s + Trap*FNrap_s*I_s) - gamma*TISOneg_s_initial
+  
+  weekly_prediction <- c(S + S_dot, I_a + I_a_dot, I_s + I_s_dot, TFN_a_initial + TFN_a, TFN_s_initial + TFN_s, TISOpos_a_initial + TISOpos_a, TISOpos_s_initial + TISOpos_s, TISOneg_a_initial + TISOneg_a, TISOneg_s_initial + TISOneg_s)
+  print(weekly_prediction)
+
+# may need to adjust the while function -- think about the logic here 
+  
+  while(num_weeks > 1) {
+    return(replicate_model(S + S_dot, I_a + I_a_dot, I_s + I_s_dot, ba, bs, p0, ca, cs, Tpcr, Trap, gamma, TFN_a_initial + TFN_a, TFN_s_initial + TFN_s, TISOneg_a_initial + TISOneg_a, TISOneg_s_initial + TISOneg_s, TISOpos_a_initial + TISOpos_a, TISOpos_s_initial + TISOpos_s, FNpcr_a, FNpcr_s, FNrap_a, FNrap_s, num_weeks - 1))
+  }
+  
+}
+
+replicate_model(0.895, 0.0025, 0.0025, 0.1, 0.2, 0.5, 0.7, 0.9, 1, 1, 0.1, 0, 0, 0, 0, 0, 0, 0.15, 0.15, 0.30, 0.30, 1)
+
+replicate_model(0.895, 0.0025, 0.0025, 0.1, 0.2, 0.5, 0.7, 0.9, 0.5, 0.5, 0.1, 0, 0, 0, 0, 0, 0, 0.15, 0.15, 0.30, 0.30, 1)
+
+replicate_model(0.895, 0.0025, 0.0025, 0.1, 0.2, 0.5, 0.7, 0.9, 0.33, 0.33, 0.1, 0, 0, 0, 0, 0, 0, 0.15, 0.15, 0.30, 0.30, 1)
+
+```
+
+The following chunk of code is what was initially used to think about the model and explore my own thought process. We can delete it later on if the above model is successful. 
+
+```{r}
+# Constants
+ba = 0.1        # transmission rate due to contact of asymptomatic patient
+bs = 0.2        # transmission rate due to contact of symptomatic patient
+gamma = 0.1     # rate of recovery for an infected individual
+p0 = 0.5        # proportion of infections that are symptomatic
+ca = 0.7        # isolation compliance asymptomatic infected + tested patients
+cs = 0.9        # isolation compliance symptomatic infected + tested patients
+FNpcr_a = 0.15  # false negative rate of a PCR test for asymptomatic patients
+FNpcr_s = 0.15  # false negative rate of a PCR test for symptomatic patients
+FNrap_a = 0.30  # false negative rate of a rapid test for asymptomatic patients
+FNrap_s = 0.30  # false negative rate of a rapid test for symptomatic patients
+FPpcr_a = 0.05  # false positive rate of a PCR test for asymptomatic patients
+FPpcr_s = 0.05  # false positive rate of a PCR test for symptomatic patients
+FPrap_a = 0.10  # false positive rate of a rapid test for asymptomatic patients
+FPrap_s = 0.10  # false positive rate of a rapid test for symptomatic patients
+
+# Initial values
+S = 0.895       # initial susceptibility of the student body
+I_s = 0.0025    # initial infected and symptomatic
+I_a = 0.0025    # initial infected and asymptomatic
+R_u = 0.10      # initial recovered unknown
+TFN_a_initial = 0 #initial infected and asymptomatic, tested
+TFN_s_initial = 0 #initial infected and symptomatic, tested
+TISOpos_a_initial = 0 #initial infected and asymptomatic, tested, in isolation
+TISOpos_s_initial = 0 #initial infected and symptomatic, tested, in isolation
+TISOneg_a_initial = 0 #initial infected and asymptomatic, tested, not in isolation
+TISOneg_s_initial = 0 #initial infected and symptomatic, tested, not in isolation
+Tpcr = 1
+Trap = 1
+
+
+n = 15000       # student population
+
+#Second week
+S_dot2 = -ba*S_dot1*(I_a_dot1 + TFN_a1 + TISOneg_a1) - bs*S_dot1*(I_s_dot1 + TFN_s1 + TISOneg_s1)
+S_dot2
+
+TFN_a2 = Tpcr*FNpcr_a*I_a_dot1 + Trap*FNrap_a*I_a_dot1 - gamma*TFN_a1
+
+
+TFN_s2 = Tpcr*FNpcr_s*I_s_dot1 + Trap*FNrap_s*I_s_dot1 - gamma*TFN_s1
+
+
+TISOpos_a2 = ca*(Tpcr*FNpcr_a*I_a_dot1 + Trap*FNrap_a*I_a_dot1) - gamma*TISOpos_a1
+
+
+TISOpos_s2 = cs*(Tpcr*FNpcr_s*I_s_dot1 + Trap*FNrap_s*I_s_dot1) - gamma*TISOpos_s1
+
+TISOneg_a2 = (1 - ca)*(Tpcr*FNpcr_a*I_a_dot1 + Trap*FNrap_a*I_a_dot1) - gamma*TISOneg_a1
+
+
+TISOneg_s2 = (1 - cs)*(Tpcr*FNpcr_s*I_s_dot1 + Trap*FNrap_s*I_s_dot1) - gamma*TISOneg_s1
+
+
+I_a_dot2 = (1 - p0)*(ba*S_dot1*(I_a_dot1 + TFN_a1 + TISOneg_a1) + bs*S_dot1*(I_s_dot1 + TFN_s1 + TISOneg_s1)) - Tpcr*I_a_dot1 - Trap*I_a_dot1 - gamma*I_a_dot1
+I_a_dot2
+
+
+I_s_dot2 = (1 - p0)*(ba*S_dot1*(I_a_dot1 + TFN_a1 + TISOneg_a1) + bs*S_dot1*(I_s_dot1 + TFN_s1 + TISOneg_s1)) - Tpcr*I_s_dot1 - Trap*I_s_dot1 - gamma*I_s_dot1
+I_s_dot2
+
+#Third week
+S_dot3 = -ba*S_dot2*(I_a_dot2 + TFN_a2 + TISOneg_a2) - bs*S_dot2*(I_s_dot2 + TFN_s2 + TISOneg_s2)
+S_dot3
+
+TFN_a3 = Tpcr*FNpcr_a*I_a_dot2 + Trap*FNrap_a*I_a_dot2 - gamma*TFN_a2
+
+
+TFN_s3 = Tpcr*FNpcr_s*I_s_dot2 + Trap*FNrap_s*I_s_dot2 - gamma*TFN_s2
+
+
+TISOpos_a3 = ca*(Tpcr*FNpcr_a*I_a_dot2 + Trap*FNrap_a*I_a_dot2) - gamma*TISOpos_a2
+
+
+TISOpos_s3 = cs*(Tpcr*FNpcr_s*I_s_dot2 + Trap*FNrap_s*I_s_dot2) - gamma*TISOpos_s2
+
+TISOneg_a3 = (1 - ca)*(Tpcr*FNpcr_a*I_a_dot2 + Trap*FNrap_a*I_a_dot2) - gamma*TISOneg_a2
+
+
+TISOneg_s3 = (1 - cs)*(Tpcr*FNpcr_s*I_s_dot2 + Trap*FNrap_s*I_s_dot2) - gamma*TISOneg_s2
+
+
+I_a_dot3 = (1 - p0)*(ba*S_dot2*(I_a_dot2 + TFN_a2 + TISOneg_a2) + bs*S_dot2*(I_s_dot2 + TFN_s2 + TISOneg_s2)) - Tpcr*I_a_dot2 - Trap*I_a_dot2 - gamma*I_a_dot2
+I_a_dot3
+
+
+I_s_dot3 = (1 - p0)*(ba*S_dot2*(I_a_dot2 + TFN_a2 + TISOneg_a2) + bs*S_dot2*(I_s_dot2 + TFN_s2 + TISOneg_s2)) - Tpcr*I_s_dot2 - Trap*I_s_dot2 - gamma*I_s_dot2
+I_s_dot3
+=======
 
 Below are the R implementations of the equations
 
@@ -175,7 +302,6 @@ TISO_sn_dot <- function(c_s, T_pcr, FNpcr_s, I_s, T_rap, FNrap_s, gamma, TISO_sn
   result <- (1 - c_s) * (T_pcr * FNpcr_s * I_s + T_rap * FNrap_s * I_s) - gamma * TISO_sn
   return(result)
 }
-```
 
 We begin with the simulation for week 1 given PCR testing available to 100% of the eligible student body
 
