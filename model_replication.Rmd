@@ -160,6 +160,21 @@ TISO_ap_dot <- function(c_a, T_pcr, FNpcr_a, I_a, T_rap, FNrap_a, gamma, TISO_ap
   result <- c_a * (T_pcr * FNpcr_a * I_a + T_rap * FNrap_a * I_a) - gamma * TISO_ap
   return(result)
 }
+
+TISO_sp_dot <- function(c_s, T_pcr, FNpcr_s, I_s, T_rap, FNrap_s, gamma, TISO_sp) {
+  result <- c_s * (T_pcr * FNpcr_s * I_s + T_rap * FNrap_s * I_s) - gamma * TISO_sp
+  return(result)
+}
+
+TISO_an_dot <- function(c_a, T_pcr, FNpcr_a, I_a, T_rap, FNrap_a, gamma, TISO_an) {
+  result <- (1 - c_a) * (T_pcr * FNpcr_a * I_a + T_rap * FNrap_a * I_a) - gamma * TISO_an
+  return(result)
+}
+
+TISO_sn_dot <- function(c_s, T_pcr, FNpcr_s, I_s, T_rap, FNrap_s, gamma, TISO_sn) {
+  result <- (1 - c_s) * (T_pcr * FNpcr_s * I_s + T_rap * FNrap_s * I_s) - gamma * TISO_sn
+  return(result)
+}
 ```
 
 We begin with the simulation for week 1 given PCR testing available to 100% of the eligible student body
@@ -167,32 +182,4 @@ We begin with the simulation for week 1 given PCR testing available to 100% of t
 ```{r}
 T_pcr = 1.00
 T_rap = 0.00
-
-# Calculate susceptibility delta for week one
-S_1 = s_dot(b_a, S_0, I_a, TFN_a, TISO_an, b_s, I_s, TFN_s, TISO_sn)
-S_1 = S_0 + S_1
-
-# Calculate infected and asymptomatic delta for week one
-I_a_1 = I_a_dot(p0, b_a, S_0, I_a, TFN_a, TISO_an, b_s, I_s, TFN_s, TISO_sn, T_pcr, T_rap, gamma)
-I_a_1 = I_a + I_a_1
-
-# Calculate infected and symptomatic delta for week one
-I_s_1 = I_s_dot(p0, b_a, S_0, I_a, TFN_a, TISO_an, b_s, I_s, TFN_s, TISO_sn, T_pcr, T_rap, gamma)
-I_s_1 = I_s + I_s_1
-
-# Calculate population tested with a false negative and asymptomatic for week one
-TFN_a_1 = TFN_a_dot(T_pcr, FNpcr_a, I_a, T_rap, FNrap_a, gamma, TFN_a)
-TFN_a_1 = TFN_a + TFN_a_1
-
-# Calculate population tested with a false negative and symptomatic for week one
-TFN_s_1 = TFN_s_dot(T_pcr, FNpcr_s, I_s, T_rap, FNrap_s, gamma, TFN_s)
-TFN_s_1 = TFN_s + TFN_s_1
-
-# Calculate population infected and tested, in isolation, and asymptomatic for week one
-TISO_ap_1 = TISO_ap_dot(c_a, T_pcr, FNpcr_a, I_a, T_rap, FNrap_a, gamma, TISO_ap)
-TISO_ap_1 = TISO_ap + TISO_ap_1
 ```
-
-
-
-
