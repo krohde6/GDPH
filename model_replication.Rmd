@@ -260,8 +260,9 @@ library(deSolve)
 library(scatterplot3d)
 library(lubridate)
 
-parameters <- c(b_a = 0.1, b_s = 0.2, p0 = 0.5, c_a = 0.7, c_s = 0.9, T_pcr = 1, T_rap = 0, gamma = 0.1, FNpcr_a = 0.15, FNpcr_s = 0.15, FNrap_a = 0.3, FNrap_s = 0.3)
-state <- c(S_0 = 0.895, I_a = 0.0025, I_s = 0.0025, TFN_a = 0, TFN_s = 0, TISO_an = 0, TISO_sn = 0, TISO_ap = 0, TISO_sp = 0)
+
+parameters <- c(b_a = 0.1, b_s = 0.2, p0 = 0.5, c_a = 0.7, c_s = 0.9, T_pcr = 0, T_rap = 0, gamma = 0.1, FNpcr_a = 0.15, FNpcr_s = 0.15, FNrap_a = 0.3, FNrap_s = 0.3)
+state <- c(S_0 = 0.895, I_a = 0.0025, I_s = 0.0025, TFN_a = 0, TFN_s = 0, TISO_an = 0, TISO_sn = 0, TISO_ap = 0, TISO_sp = 0, RC = 0, RU = 0.10)
 replicate_function2 <- function(t, state, parameters) {
   with(as.list(c(state, parameters)), {
     dS <- (-b_a * S_0 * (I_a + TFN_a + TISO_an)) - (b_s * S_0 * (I_s + TFN_s + TISO_sn))
@@ -273,20 +274,24 @@ replicate_function2 <- function(t, state, parameters) {
     dTISO_sp <- c_s * (T_pcr * FNpcr_s * I_s + T_rap * FNrap_s * I_s) - gamma * TISO_sp
     dTISO_an<- (1 - c_a) * (T_pcr * FNpcr_a * I_a + T_rap * FNrap_a * I_a) - gamma * TISO_an
     dTISO_sn <- (1 - c_s) * (T_pcr * FNpcr_s * I_s + T_rap * FNrap_s * I_s) - gamma * TISO_sn
-    return(list(c(dS, dI_a, dI_s, dTFN_a, dTFN_s, dTISO_ap, dTISO_sp, dTISO_an, dTISO_sn)))
+    dRC <- gamma*(I_a + I_s + TFN_a + TFN_s)
+    dRU <- gamma*(TISO_ap + TISO_sp + TISO_an + TISO_sn)
+    return(list(c(dS, dI_a, dI_s, dTFN_a, dTFN_s, dTISO_ap, dTISO_sp, dTISO_an, dTISO_sn, dRC, dRU)))
   })
 }
 
-sir_start_date <- "2021-01-18"
-sir_end_date <- "2021-05-05"
-#times <- 1:as.integer(ymd(sir_end_date) + 1 - ymd(sir_start_date))
-
-times <- seq(0, 107, by=7)
+times <- seq(0, 107, by = 1)
 out <- ode(y = state, times = times, func = replicate_function2, parms = parameters)
-out
-par(oma = c(0, 0, 3, 0))
-plot(out, xlab = "time", ylab = "-")
-sums4 <- colSums(out); sums4
+IAR = out[1, 2] - out[108, 2]
+IAR
+num_cases = IAR * 15000
+num_cases
 
+#par(oma = c(0, 0, 3, 0))
+#plot(out, xlab = "time", ylab = "-")
+#print(seq(0, 107))
+
+#parameters <- c(b_a = 0.1, b_s = 0.2, p0 = 0.5, c_a = 0.7, c_s = 0.9, T_pcr = 0, T_rap = 0, gamma = 0.1, FNpcr_a = 0.15, FNpcr_s = 0.15, FNrap_a = 0.3, FNrap_s = 0.3)
+#state <- c(S_0 = 0.895, I_a = 0.0025, I_s = 0.0025, TFN_a = 0, TFN_s = 0, TISO_an = 0, TISO_sn = 0, TISO_ap = 0, TISO_sp = 0, RC = 0, RU = 0.10)
 
 ```
