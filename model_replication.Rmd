@@ -93,12 +93,12 @@ Below are the variable definitions
 
 ```{r}
 # Constants
-b_a = 0.1        # transmission rate due to contact of asymptomatic patient
-b_s = 0.2        # transmission rate due to contact of symptomatic patient
+b_a = 0.1       # transmission rate due to contact of asymptomatic patient
+b_s = 0.2       # transmission rate due to contact of symptomatic patient
 gamma = 0.1     # rate of recovery for an infected individual
 p0 = 0.5        # proportion of infections that are symptomatic
-c_a = 0.7        # isolation compliance asymptomatic infected + tested patients
-c_s = 0.9        # isolation compliance symptomatic infected + tested patients
+c_a = 0.7       # isolation compliance asymptomatic infected + tested patients
+c_s = 0.9       # isolation compliance symptomatic infected + tested patients
 FNpcr_a = 0.15  # false negative rate of a PCR test for asymptomatic patients
 FNpcr_s = 0.15  # false negative rate of a PCR test for symptomatic patients
 FNrap_a = 0.30  # false negative rate of a rapid test for asymptomatic patients
@@ -128,7 +128,7 @@ n = 15000       # student population
 The following creates a function that can be used to calculate values for each of the 9 equations used in the "The Impact of Covid-19 Testing on College Campuses" week over week. The function allows the user to input initial values for each of the specified parameters used in the research done by Zhuoting Yu, Akane B. Fujimoto, Pinar Keskinocak, and Julie Swann, as well as input the number of weeks that the user would like to forecast for. The function generates the predicted values for the following week and then recursively calls on itself using the values predicted for the next week. This allows the model to forecast for multiple weeks at a time as opposed to manually calculating each of the values each week, as well as allows the user to input values as data becomes known (basically allowing them to reset the initial values at any point in time).
 
 ```{r}
-s_dot <- function(b_a, S_0, I_a, TFN_a, TISO_an, b_s, I_s, TFN_s, TISO_sn) {
+S_dot <- function(b_a, S_0, I_a, TFN_a, TISO_an, b_s, I_s, TFN_s, TISO_sn) {
   result <- (-b_a * S_0 * (I_a + TFN_a + TISO_an)) - (b_s * S_0 * (I_s + TFN_s + TISO_sn))
   return(result)
 }
@@ -173,84 +173,18 @@ TISO_sn_dot <- function(c_s, T_pcr, FNpcr_s, I_s, T_rap, FNrap_s, gamma, TISO_sn
   return(result)
 }
 
-#Creating a program that will loop through and add susceptibility
-
-replicate_model <- function(total_weeks = c(), S_0, I_a, I_s, b_a, b_s, p0, c_a, c_s, T_pcr, T_rap, gamma, TFN_a, TFN_s, TISO_an, TISO_sn, TISO_ap, TISO_sp, FNpcr_a, FNpcr_s, FNrap_a, FNrap_s, num_weeks) {
-  S_dot = s_dot(b_a, S_0, I_a, TFN_a, TISO_an, b_s, I_s, TFN_s, TISO_sn)
-  I_a_dot = I_a_dot(p0, b_a, S_0, I_a, TFN_a, TISO_an, b_s, I_s, TFN_s, TISO_sn, T_pcr, T_rap, gamma)
-  I_s_dot = I_s_dot(p0, b_a, S_0, I_a, TFN_a, TISO_an, b_s, I_s, TFN_s, TISO_sn, T_pcr, T_rap, gamma)
-  TFN_a_dot = TFN_a_dot(T_pcr, FNpcr_a, I_a, T_rap, FNrap_a, gamma, TFN_a)
-  TFN_s_dot = TFN_s_dot(T_pcr, FNpcr_s, I_s, T_rap, FNrap_s, gamma, TFN_s)
-  TISO_ap_dot = TISO_ap_dot(c_a, T_pcr, FNpcr_a, I_a, T_rap, FNrap_a, gamma, TISO_ap)
-  TISO_sp_dot = TISO_sp_dot(c_s, T_pcr, FNpcr_s, I_s, T_rap, FNrap_s, gamma, TISO_sp)
-  TISO_an_dot = TISO_an_dot(c_a, T_pcr, FNpcr_a, I_a, T_rap, FNrap_a, gamma, TISO_an)
-  TISO_sn_dot = TISO_sn_dot(c_s, T_pcr, FNpcr_s, I_s, T_rap, FNrap_s, gamma, TISO_sn)
-  
-  weekly_prediction <- c(S_0 + S_dot, I_a + I_a_dot, I_s + I_s_dot, TFN_a + TFN_a_dot, TFN_s + TFN_s_dot, TISO_ap + TISO_ap_dot, TISO_sp + TISO_sp_dot, TISO_an + TISO_an_dot, TISO_sn + TISO_sn_dot)
-  total_weeks = append(total_weeks, weekly_prediction)
-
-# may need to adjust the while function -- think about the logic here 
-  
-  if(num_weeks == 1) {
-    return(total_weeks)
-  } else {
-    return(replicate_model(total_weeks, S_0 + S_dot, I_a + I_a_dot, I_s + I_s_dot, b_a, b_s, p0, c_a, c_s, T_pcr, T_rap, gamma, TFN_a + TFN_a_dot, TFN_s + TFN_s_dot, TISO_an + TISO_an_dot, TISO_sn + TISO_sn_dot, TISO_ap + TISO_ap_dot, TISO_sp + TISO_sp_dot, FNpcr_a, FNpcr_s, FNrap_a, FNrap_s, num_weeks - 1))
-  }
+RC_dot <- function(gamma, I_a, I_s, TFN_a, TFN_s) {
+  result <- gamma * (I_a + I_s + TFN_a + TFN_s)
+  return(result)
 }
 
-result = replicate_model(total_weeks = c(), 0.895, 0.0025, 0.0025, 0.1, 0.2, 0.5, 0.7, 0.9, 1, 0, 0.1, 0, 0, 0, 0, 0, 0, 0.15, 0.15, 0.30, 0.30, 5); result
-
+RU_dot <- function(gamma, TISO_ap, TISO_sp, TISO_an, TISO_sn) {
+  result <- gamma * (TISO_ap + TISO_sp + TISO_an + TISO_sn)
+  return(result)
+}
 ```
 
 Now we run the simulation against various testing availabilities, beginning with the baseline test (no testing available).
-
-```{r}
-num_weeks = 15
-
-T_pcr = 0.00
-T_rap = 0.00
-
-baseline <- replicate_model(total_weeks = c(), S_0, I_a, I_s, b_a, b_s, p0, c_a, c_s, T_pcr, T_rap, gamma, TFN_a, TFN_s, TISO_an, TISO_sn, TISO_ap, TISO_sp, FNpcr_a, FNpcr_s, FNrap_a, FNrap_s, num_weeks)
-baseline <- t(matrix(baseline, ncol=num_weeks))
-baseline
-sums <- colSums(baseline); sums
-0.04938909 + 0.04938909
-
-T_pcr = 1.00
-T_rap = 0.00
-
-PCR_100 <- replicate_model(total_weeks = c(), S_0, I_a, I_s, b_a, b_s, p0, c_a, c_s, T_pcr, T_rap, gamma, TFN_a, TFN_s, TISO_an, TISO_sn, TISO_ap, TISO_sp, FNpcr_a, FNpcr_s, FNrap_a, FNrap_s, num_weeks)
-PCR_100 <- t(matrix(PCR_100, ncol=num_weeks))
-
-T_pcr = 0.50
-T_rap = 0.00
-
-PCR_50 <- replicate_model(total_weeks = c(), S_0, I_a, I_s, b_a, b_s, p0, c_a, c_s, T_pcr, T_rap, gamma, TFN_a, TFN_s, TISO_an, TISO_sn, TISO_ap, TISO_sp, FNpcr_a, FNpcr_s, FNrap_a, FNrap_s, num_weeks)
-PCR_50 <- t(matrix(PCR_50, ncol=num_weeks))
-
-T_pcr = 0.33
-T_rap = 0.00
-
-PCR_33 <- replicate_model(total_weeks = c(), S_0, I_a, I_s, b_a, b_s, p0, c_a, c_s, T_pcr, T_rap, gamma, TFN_a, TFN_s, TISO_an, TISO_sn, TISO_ap, TISO_sp, FNpcr_a, FNpcr_s, FNrap_a, FNrap_s, num_weeks)
-PCR_33 <- t(matrix(PCR_33, ncol=num_weeks))
-
-T_pcr = 0.00
-T_rap = 1.00
-
-RAP_100 <- replicate_model(total_weeks = c(), S_0, I_a, I_s, b_a, b_s, p0, c_a, c_s, T_pcr, T_rap, gamma, TFN_a, TFN_s, TISO_an, TISO_sn, TISO_ap, TISO_sp, FNpcr_a, FNpcr_s, FNrap_a, FNrap_s, num_weeks)
-RAP_100 <- t(matrix(RAP_100, ncol=num_weeks))
-
-T_pcr = 0.00
-T_rap = 0.50
-
-RAP_50 <- replicate_model(total_weeks = c(), S_0, I_a, I_s, b_a, b_s, p0, c_a, c_s, T_pcr, T_rap, gamma, TFN_a, TFN_s, TISO_an, TISO_sn, TISO_ap, TISO_sp, FNpcr_a, FNpcr_s, FNrap_a, FNrap_s, num_weeks)
-RAP_50 <- t(matrix(RAP_50, ncol=num_weeks))
-
-T_pcr = 0.00
-T_rap = 0.33
-
-RAP_33 <- replicate_model(total_weeks = c(), S_0, I_a, I_s, b_a, b_s, p0, c_a, c_s, T_pcr, T_rap, gamma, TFN_a, TFN_s, TISO_an, TISO_sn, TISO_ap, TISO_sp, FNpcr_a, FNpcr_s, FNrap_a, FNrap_s, num_weeks)
-RAP_33 <- t(matrix(RAP_33, ncol=num_weeks))
 ```
 
 The following attempts to use the deSolve package in order to solve the ODEs from the paper as instructed by April Yu. 
@@ -260,38 +194,75 @@ library(deSolve)
 library(scatterplot3d)
 library(lubridate)
 
+# Number of days in simulation
+days <- 107
 
-parameters <- c(b_a = 0.1, b_s = 0.2, p0 = 0.5, c_a = 0.7, c_s = 0.9, T_pcr = 0, T_rap = 0, gamma = 0.1, FNpcr_a = 0.15, FNpcr_s = 0.15, FNrap_a = 0.3, FNrap_s = 0.3)
-state <- c(S_0 = 0.895, I_a = 0.0025, I_s = 0.0025, TFN_a = 0, TFN_s = 0, TISO_an = 0, TISO_sn = 0, TISO_ap = 0, TISO_sp = 0, RC = 0, RU = 0.10)
-replicate_function2 <- function(t, state, parameters) {
+# Define time step (consistent across all testing availability scenarios)
+times <- seq(0, 107, by = 1)
+
+# Define beginning states (adds to 1 for 100% of school population)
+state <- c(S_0=0.895, I_a=0.0025, I_s=0.0025, TFN_a=0, TFN_s=0, TISO_an=0, TISO_sn=0, TISO_ap=0, TISO_sp=0, RC=0, RU=0.10)
+
+# Define generic value update function
+replicate_function <- function(t, state, parameters) {
   with(as.list(c(state, parameters)), {
-    dS <- (-b_a * S_0 * (I_a + TFN_a + TISO_an)) - (b_s * S_0 * (I_s + TFN_s + TISO_sn))
-    dI_a <- (1 - p0) * (b_a * S_0 * (I_a + TFN_a + TISO_an) + b_s * S_0 * (I_s + TFN_s + TISO_sn)) - T_pcr * I_a - T_rap * I_a - gamma * I_a
-    dI_s <- p0 * (b_a * S_0 * (I_a + TFN_a + TISO_an) + b_s * S_0 * (I_s + TFN_s + TISO_sn)) - T_pcr * I_s - T_rap * I_s - gamma * I_s
-    dTFN_a <- T_pcr * FNpcr_a * I_a + T_rap * FNrap_a * I_a - gamma * TFN_a
-    dTFN_s <- T_pcr * FNpcr_s * I_s + T_rap * FNrap_s * I_s - gamma * TFN_s
-    dTISO_ap<- c_a * (T_pcr * FNpcr_a * I_a + T_rap * FNrap_a * I_a) - gamma * TISO_ap
-    dTISO_sp <- c_s * (T_pcr * FNpcr_s * I_s + T_rap * FNrap_s * I_s) - gamma * TISO_sp
-    dTISO_an<- (1 - c_a) * (T_pcr * FNpcr_a * I_a + T_rap * FNrap_a * I_a) - gamma * TISO_an
-    dTISO_sn <- (1 - c_s) * (T_pcr * FNpcr_s * I_s + T_rap * FNrap_s * I_s) - gamma * TISO_sn
-    dRC <- gamma*(I_a + I_s + TFN_a + TFN_s)
-    dRU <- gamma*(TISO_ap + TISO_sp + TISO_an + TISO_sn)
+    dS <- S_dot(b_a, S_0, I_a, TFN_a, TISO_an, b_s, I_s, TFN_s, TISO_sn)
+    dI_a <- I_a_dot(p0, b_a, S_0, I_a, TFN_a, TISO_an, b_s, I_s, TFN_s, TISO_sn, T_pcr, T_rap, gamma)
+    dI_s <- I_s_dot(p0, b_a, S_0, I_a, TFN_a, TISO_an, b_s, I_s, TFN_s, TISO_sn, T_pcr, T_rap, gamma)
+    dTFN_a <- TFN_a_dot(T_pcr, FNpcr_a, I_a, T_rap, FNrap_a, gamma, TFN_a)
+    dTFN_s <- TFN_s_dot(T_pcr, FNpcr_s, I_s, T_rap, FNrap_s, gamma, TFN_s)
+    dTISO_ap <- TISO_ap_dot(c_a, T_pcr, FNpcr_a, I_a, T_rap, FNrap_a, gamma, TISO_ap)
+    dTISO_sp <- TISO_sp_dot(c_s, T_pcr, FNpcr_s, I_s, T_rap, FNrap_s, gamma, TISO_sp)
+    dTISO_an <- TISO_an_dot(c_a, T_pcr, FNpcr_a, I_a, T_rap, FNrap_a, gamma, TISO_an)
+    dTISO_sn <- TISO_sn_dot(c_s, T_pcr, FNpcr_s, I_s, T_rap, FNrap_s, gamma, TISO_sn)
+    dRC <- RC_dot(gamma, I_a, I_s, TFN_a, TFN_s)
+    dRU <- RU_dot(gamma, TISO_ap, TISO_sp, TISO_an, TISO_sn)
     return(list(c(dS, dI_a, dI_s, dTFN_a, dTFN_s, dTISO_ap, dTISO_sp, dTISO_an, dTISO_sn, dRC, dRU)))
   })
 }
 
-times <- seq(0, 107, by = 1)
-out <- ode(y = state, times = times, func = replicate_function2, parms = parameters)
-IAR = out[1, 2] - out[108, 2]
+# Scenario 1: baseline (no testing)
+parameters <- c(b_a=0.1, b_s=0.2, p0=0.5, c_a=0.7, c_s=0.9, T_pcr=0, T_rap=0, gamma=0.1, FNpcr_a=0.15, FNpcr_s=0.15, FNrap_a=0.3, FNrap_s=0.3)
+
+baseline <- ode(y = state, times = times, func = replicate_function, parms = parameters)
+IAR = baseline[1, 2] - baseline[108, 2]
 IAR
 num_cases = IAR * 15000
 num_cases
 
-#par(oma = c(0, 0, 3, 0))
-#plot(out, xlab = "time", ylab = "-")
-#print(seq(0, 107))
+# Scenario 2: PCR test available to 100% of population
+parameters <- c(b_a=0.1, b_s=0.2, p0=0.5, c_a=0.7, c_s=0.9, T_pcr=1, T_rap=0, gamma=0.1, FNpcr_a=0.15, FNpcr_s=0.15, FNrap_a=0.3, FNrap_s=0.3)
 
-#parameters <- c(b_a = 0.1, b_s = 0.2, p0 = 0.5, c_a = 0.7, c_s = 0.9, T_pcr = 0, T_rap = 0, gamma = 0.1, FNpcr_a = 0.15, FNpcr_s = 0.15, FNrap_a = 0.3, FNrap_s = 0.3)
-#state <- c(S_0 = 0.895, I_a = 0.0025, I_s = 0.0025, TFN_a = 0, TFN_s = 0, TISO_an = 0, TISO_sn = 0, TISO_ap = 0, TISO_sp = 0, RC = 0, RU = 0.10)
+PCR_100 <- ode(y = state, times = times, func = replicate_function, parms = parameters)
+IAR = PCR_100[1, 2] - PCR_100[108, 2]
+num_cases = IAR * 15000
+num_cases
+
+# Scenario 3: PCR test available to 50% of population
+parameters <- c(b_a=0.1, b_s=0.2, p0=0.5, c_a=0.7, c_s=0.9, T_pcr=0.5, T_rap=0, gamma=0.1, FNpcr_a=0.15, FNpcr_s=0.15, FNrap_a=0.3, FNrap_s=0.3)
+
+PCR_50 <- ode(y = state, times = times, func = replicate_function, parms = parameters)
+IAR = PCR_50[1, 2] - PCR_50[108, 2]
+
+# Scenario 4: PCR test available to 33% of population
+parameters <- c(b_a=0.1, b_s=0.2, p0=0.5, c_a=0.7, c_s=0.9, T_pcr=0.33, T_rap=0, gamma=0.1, FNpcr_a=0.15, FNpcr_s=0.15, FNrap_a=0.3, FNrap_s=0.3)
+
+PCR_33 <- ode(y = state, times = times, func = replicate_function, parms = parameters)
+IAR = PCR_33[1, 2] - PCR_33[108, 2]
+
+# Scenario 5: Rapid test availble to 100% of population
+parameters <- c(b_a=0.1, b_s=0.2, p0=0.5, c_a=0.7, c_s=0.9, T_pcr=0, T_rap=1, gamma=0.1, FNpcr_a=0.15, FNpcr_s=0.15, FNrap_a=0.3, FNrap_s=0.3)
+
+RAP_100 <- ode(y = state, times = times, func = replicate_function, parms = parameters)
+IAR = RAP_100[1, 2] - RAP_100[108, 2]
+
+# Scenario 6: Rapid test available to 50% of population
+parameters <- c(b_a=0.1, b_s=0.2, p0=0.5, c_a=0.7, c_s=0.9, T_pcr=0, T_rap=0.5, gamma=0.1, FNpcr_a=0.15, FNpcr_s=0.15, FNrap_a=0.3, FNrap_s=0.3)
+
+PCR_100 <- ode(y = state, times = times, func = replicate_function, parms = parameters)
+IAR = PCR_100[1, 2] - PCR_100[108, 2]
+
+# Scenario 7: Rapid test available to 33% of population
+parameters <- c(b_a=0.1, b_s=0.2, p0=0.5, c_a=0.7, c_s=0.9, T_pcr=0, T_rap=0.33, gamma=0.1, FNpcr_a=0.15, FNpcr_s=0.15, FNrap_a=0.3, FNrap_s=0.3)
 
 ```
