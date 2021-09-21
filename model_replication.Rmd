@@ -134,42 +134,42 @@ S_dot <- function(b_a, S_0, I_a, TFN_a, TISO_an, b_s, I_s, TFN_s, TISO_sn) {
 }
 
 I_a_dot <- function(p0, b_a, S_0, I_a, TFN_a, TISO_an, b_s, I_s, TFN_s, TISO_sn, T_pcr, T_rap, gamma) {
-  result <- (1 - p0) * (b_a * S_0 * (I_a + TFN_a + TISO_an) + b_s * S_0 * (I_s + TFN_s + TISO_sn)) - T_pcr * I_a - T_rap * I_a - gamma * I_a
+  result <- (1 - p0) * ((b_a * S_0 * (I_a + TFN_a + TISO_an)) + (b_s * S_0 * (I_s + TFN_s + TISO_sn))) - (T_pcr * I_a) - (T_rap * I_a) - (gamma * I_a)
   return(result)
 }
 
 I_s_dot <- function(p0, b_a, S_0, I_a, TFN_a, TISO_an, b_s, I_s, TFN_s, TISO_sn, T_pcr, T_rap, gamma) {
-  result <- p0 * (b_a * S_0 * (I_a + TFN_a + TISO_an) + b_s * S_0 * (I_s + TFN_s + TISO_sn)) - T_pcr * I_s - T_rap * I_s - gamma * I_s
+  result <- p0 * ((b_a * S_0 * (I_a + TFN_a + TISO_an)) + (b_s * S_0 * (I_s + TFN_s + TISO_sn))) - (T_pcr * I_s) - (T_rap * I_s) - (gamma * I_s)
   return(result)
 }
 
 TFN_a_dot <- function(T_pcr, FNpcr_a, I_a, T_rap, FNrap_a, gamma, TFN_a) {
-  result <- T_pcr * FNpcr_a * I_a + T_rap * FNrap_a * I_a - gamma * TFN_a
+  result <- (T_pcr * FNpcr_a * I_a) + (T_rap * FNrap_a * I_a) - (gamma * TFN_a)
   return(result)
 }
 
 TFN_s_dot <- function(T_pcr, FNpcr_s, I_s, T_rap, FNrap_s, gamma, TFN_s) {
-  result <- T_pcr * FNpcr_s * I_s + T_rap * FNrap_s * I_s - gamma * TFN_s
+  result <- (T_pcr * FNpcr_s * I_s) + (T_rap * FNrap_s * I_s) - (gamma * TFN_s)
   return(result)
 }
 
 TISO_ap_dot <- function(c_a, T_pcr, FNpcr_a, I_a, T_rap, FNrap_a, gamma, TISO_ap) {
-  result <- c_a * (T_pcr * FNpcr_a * I_a + T_rap * FNrap_a * I_a) - gamma * TISO_ap
+  result <- c_a * ((T_pcr * FNpcr_a * I_a) + (T_rap * FNrap_a * I_a)) - (gamma * TISO_ap)
   return(result)
 }
 
 TISO_sp_dot <- function(c_s, T_pcr, FNpcr_s, I_s, T_rap, FNrap_s, gamma, TISO_sp) {
-  result <- c_s * (T_pcr * FNpcr_s * I_s + T_rap * FNrap_s * I_s) - gamma * TISO_sp
+  result <- c_s * ((T_pcr * FNpcr_s * I_s) + (T_rap * FNrap_s * I_s)) - (gamma * TISO_sp)
   return(result)
 }
 
 TISO_an_dot <- function(c_a, T_pcr, FNpcr_a, I_a, T_rap, FNrap_a, gamma, TISO_an) {
-  result <- (1 - c_a) * (T_pcr * FNpcr_a * I_a + T_rap * FNrap_a * I_a) - gamma * TISO_an
+  result <- (1 - c_a) * ((T_pcr * FNpcr_a * I_a) + (T_rap * FNrap_a * I_a)) - (gamma * TISO_an)
   return(result)
 }
 
 TISO_sn_dot <- function(c_s, T_pcr, FNpcr_s, I_s, T_rap, FNrap_s, gamma, TISO_sn) {
-  result <- (1 - c_s) * (T_pcr * FNpcr_s * I_s + T_rap * FNrap_s * I_s) - gamma * TISO_sn
+  result <- (1 - c_s) * ((T_pcr * FNpcr_s * I_s) + (T_rap * FNrap_s * I_s)) - (gamma * TISO_sn)
   return(result)
 }
 
@@ -194,7 +194,10 @@ library(scatterplot3d)
 library(lubridate)
 
 # Number of days in simulation
-days <- 107
+days <- 108
+
+# Sequence
+semester <- seq(1, days, by=1)
 
 # Define generic value update function
 replicate_function <- function(t, state, parameters) {
@@ -208,24 +211,26 @@ replicate_function <- function(t, state, parameters) {
     dTISO_sp <- TISO_sp_dot(c_s, T_pcr, FNpcr_s, I_s, T_rap, FNrap_s, gamma, TISO_sp)
     dTISO_an <- TISO_an_dot(c_a, T_pcr, FNpcr_a, I_a, T_rap, FNrap_a, gamma, TISO_an)
     dTISO_sn <- TISO_sn_dot(c_s, T_pcr, FNpcr_s, I_s, T_rap, FNrap_s, gamma, TISO_sn)
-    dRC <- RC_dot(gamma, I_a, I_s, TFN_a, TFN_s)
-    dRU <- RU_dot(gamma, TISO_ap, TISO_sp, TISO_an, TISO_sn)
-    return(list(c(dS, dI_a, dI_s, dTFN_a, dTFN_s, dTISO_ap, dTISO_sp, dTISO_an, dTISO_sn, dRC, dRU)))
+    dRC <- RC_dot(gamma, TISO_ap, TISO_sp, TISO_an, TISO_sn)
+    dRU <- RU_dot(gamma, I_a, I_s, TFN_a, TFN_s)
+    return(list(c(dS, dI_a, dI_s, dTFN_a, dTFN_s, dTISO_an, dTISO_sn, dTISO_ap, dTISO_sp, dRC, dRU)))
   })
 }
 
 # initial state
 state <- c(S_0 = 0.895, I_a = 0.0025, I_s = 0.0025, TFN_a = 0, TFN_s = 0, TISO_an = 0, TISO_sn = 0, TISO_ap = 0, TISO_sp = 0, RC = 0, RU = 0.10)
 
-for (t in seq(1, 108, by = 1)) {
+for (t in semester) {
   times = seq(t-1, t, by=1)
-  if ((t - 1) %% 7 == 0) {
+  if (t %% 7 == 0) {
     parameters <- c(b_a = 0.1, b_s = 0.2, p0 = 0.5, c_a = 0.7, c_s = 0.9, T_pcr = 1, T_rap = 0, gamma = 0.1, FNpcr_a = 0.15, FNpcr_s = 0.15, FNrap_a = 0.3, FNrap_s = 0.3)
   } else {
     parameters <- c(b_a = 0.1, b_s = 0.2, p0 = 0.5, c_a = 0.7, c_s = 0.9, T_pcr = 0, T_rap = 0, gamma = 0.1, FNpcr_a = 0.15, FNpcr_s = 0.15, FNrap_a = 0.3, FNrap_s = 0.3)
   }
-  state <- ode(y = state, times = times, func = replicate_function, parms = parameters)[2,2:12]
-  print(state)
+  state <- ode(y = state, times = times, func = replicate_function, parms = parameters)[2,c(2:12)]
+  if (t == days) {
+    print(state)
+  }
 }
 
 # Scenario 1: baseline (no testing)
