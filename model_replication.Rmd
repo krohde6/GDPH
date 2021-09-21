@@ -224,7 +224,7 @@ for (t in seq(1, 108, by = 1)) {
   } else {
     parameters <- c(b_a = 0.1, b_s = 0.2, p0 = 0.5, c_a = 0.7, c_s = 0.9, T_pcr = 0, T_rap = 0, gamma = 0.1, FNpcr_a = 0.15, FNpcr_s = 0.15, FNrap_a = 0.3, FNrap_s = 0.3)
   }
-  state <- ode(y = state, times = times, func = replicate_function2, parms = parameters)[2,2:12]
+  state <- ode(y = state, times = times, func = replicate_function, parms = parameters)[2,2:12]
   print(state)
 }
 
