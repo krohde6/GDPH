@@ -185,7 +185,6 @@ RU_dot <- function(gamma, TISO_ap, TISO_sp, TISO_an, TISO_sn) {
 ```
 
 Now we run the simulation against various testing availabilities, beginning with the baseline test (no testing available).
-```
 
 The following attempts to use the deSolve package in order to solve the ODEs from the paper as instructed by April Yu. 
 
