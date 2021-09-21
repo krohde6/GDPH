@@ -174,12 +174,12 @@ TISO_sn_dot <- function(c_s, T_pcr, FNpcr_s, I_s, T_rap, FNrap_s, gamma, TISO_sn
 }
 
 RC_dot <- function(gamma, I_a, I_s, TFN_a, TFN_s) {
-  result <- gamma * (I_a + I_s + TFN_a + TFN_s)
+  result <- gamma * (TISO_ap + TISO_sp + TISO_an + TISO_sn)
   return(result)
 }
 
 RU_dot <- function(gamma, TISO_ap, TISO_sp, TISO_an, TISO_sn) {
-  result <- gamma * (TISO_ap + TISO_sp + TISO_an + TISO_sn)
+  result <- gamma * (I_a + I_s + TFN_a + TFN_s)
   return(result)
 }
 ```
@@ -195,12 +195,6 @@ library(lubridate)
 
 # Number of days in simulation
 days <- 107
-
-# Define time step (consistent across all testing availability scenarios)
-times <- seq(0, 107, by = 1)
-
-# Define beginning states (adds to 1 for 100% of school population)
-state <- c(S_0=0.895, I_a=0.0025, I_s=0.0025, TFN_a=0, TFN_s=0, TISO_an=0, TISO_sn=0, TISO_ap=0, TISO_sp=0, RC=0, RU=0.10)
 
 # Define generic value update function
 replicate_function <- function(t, state, parameters) {
@@ -220,48 +214,45 @@ replicate_function <- function(t, state, parameters) {
   })
 }
 
+# initial state
+state <- c(S_0 = 0.895, I_a = 0.0025, I_s = 0.0025, TFN_a = 0, TFN_s = 0, TISO_an = 0, TISO_sn = 0, TISO_ap = 0, TISO_sp = 0, RC = 0, RU = 0.10)
+
+for (t in seq(1, 108, by = 1)) {
+  times = seq(t-1, t, by=1)
+  if ((t - 1) %% 7 == 0) {
+    parameters <- c(b_a = 0.1, b_s = 0.2, p0 = 0.5, c_a = 0.7, c_s = 0.9, T_pcr = 1, T_rap = 0, gamma = 0.1, FNpcr_a = 0.15, FNpcr_s = 0.15, FNrap_a = 0.3, FNrap_s = 0.3)
+  } else {
+    parameters <- c(b_a = 0.1, b_s = 0.2, p0 = 0.5, c_a = 0.7, c_s = 0.9, T_pcr = 0, T_rap = 0, gamma = 0.1, FNpcr_a = 0.15, FNpcr_s = 0.15, FNrap_a = 0.3, FNrap_s = 0.3)
+  }
+  state <- ode(y = state, times = times, func = replicate_function2, parms = parameters)[2,2:12]
+  print(state)
+}
+
 # Scenario 1: baseline (no testing)
 parameters <- c(b_a=0.1, b_s=0.2, p0=0.5, c_a=0.7, c_s=0.9, T_pcr=0, T_rap=0, gamma=0.1, FNpcr_a=0.15, FNpcr_s=0.15, FNrap_a=0.3, FNrap_s=0.3)
-
 baseline <- ode(y = state, times = times, func = replicate_function, parms = parameters)
-IAR = baseline[1, 2] - baseline[108, 2]
-IAR
-num_cases = IAR * 15000
-num_cases
 
 # Scenario 2: PCR test available to 100% of population
 parameters <- c(b_a=0.1, b_s=0.2, p0=0.5, c_a=0.7, c_s=0.9, T_pcr=1, T_rap=0, gamma=0.1, FNpcr_a=0.15, FNpcr_s=0.15, FNrap_a=0.3, FNrap_s=0.3)
-
 PCR_100 <- ode(y = state, times = times, func = replicate_function, parms = parameters)
-IAR = PCR_100[1, 2] - PCR_100[108, 2]
-num_cases = IAR * 15000
-num_cases
 
 # Scenario 3: PCR test available to 50% of population
 parameters <- c(b_a=0.1, b_s=0.2, p0=0.5, c_a=0.7, c_s=0.9, T_pcr=0.5, T_rap=0, gamma=0.1, FNpcr_a=0.15, FNpcr_s=0.15, FNrap_a=0.3, FNrap_s=0.3)
-
 PCR_50 <- ode(y = state, times = times, func = replicate_function, parms = parameters)
-IAR = PCR_50[1, 2] - PCR_50[108, 2]
 
 # Scenario 4: PCR test available to 33% of population
 parameters <- c(b_a=0.1, b_s=0.2, p0=0.5, c_a=0.7, c_s=0.9, T_pcr=0.33, T_rap=0, gamma=0.1, FNpcr_a=0.15, FNpcr_s=0.15, FNrap_a=0.3, FNrap_s=0.3)
-
 PCR_33 <- ode(y = state, times = times, func = replicate_function, parms = parameters)
-IAR = PCR_33[1, 2] - PCR_33[108, 2]
 
 # Scenario 5: Rapid test availble to 100% of population
 parameters <- c(b_a=0.1, b_s=0.2, p0=0.5, c_a=0.7, c_s=0.9, T_pcr=0, T_rap=1, gamma=0.1, FNpcr_a=0.15, FNpcr_s=0.15, FNrap_a=0.3, FNrap_s=0.3)
-
 RAP_100 <- ode(y = state, times = times, func = replicate_function, parms = parameters)
-IAR = RAP_100[1, 2] - RAP_100[108, 2]
 
 # Scenario 6: Rapid test available to 50% of population
 parameters <- c(b_a=0.1, b_s=0.2, p0=0.5, c_a=0.7, c_s=0.9, T_pcr=0, T_rap=0.5, gamma=0.1, FNpcr_a=0.15, FNpcr_s=0.15, FNrap_a=0.3, FNrap_s=0.3)
-
-PCR_100 <- ode(y = state, times = times, func = replicate_function, parms = parameters)
-IAR = PCR_100[1, 2] - PCR_100[108, 2]
+RAP_50 <- ode(y = state, times = times, func = replicate_function, parms = parameters)
 
 # Scenario 7: Rapid test available to 33% of population
 parameters <- c(b_a=0.1, b_s=0.2, p0=0.5, c_a=0.7, c_s=0.9, T_pcr=0, T_rap=0.33, gamma=0.1, FNpcr_a=0.15, FNpcr_s=0.15, FNrap_a=0.3, FNrap_s=0.3)
-
+RAP_33 <- ode(y = state, times = times, func = replicate_function, parms = parameters)
 ```
