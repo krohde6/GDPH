@@ -154,31 +154,31 @@ TFN_s_dot <- function(T_pcr, FNpcr_s, I_s, T_rap, FNrap_s, gamma, TFN_s) {
 }
 
 TISO_ap_dot <- function(c_a, T_pcr, FNpcr_a, I_a, T_rap, FNrap_a, gamma, TISO_ap) {
-  result <- c_a * ((T_pcr * FNpcr_a * I_a) + (T_rap * FNrap_a * I_a)) - (gamma * TISO_ap)
+  result <- c_a * ((T_pcr * (1 -FNpcr_a) * I_a) + (T_rap * (1 - FNrap_a) * I_a)) - (gamma * TISO_ap)
   return(result)
 }
 
 TISO_sp_dot <- function(c_s, T_pcr, FNpcr_s, I_s, T_rap, FNrap_s, gamma, TISO_sp) {
-  result <- c_s * ((T_pcr * FNpcr_s * I_s) + (T_rap * FNrap_s * I_s)) - (gamma * TISO_sp)
+  result <- c_s * ((T_pcr * (1 - FNpcr_s) * I_s) + (T_rap * (1 - FNrap_s) * I_s)) - (gamma * TISO_sp)
   return(result)
 }
 
 TISO_an_dot <- function(c_a, T_pcr, FNpcr_a, I_a, T_rap, FNrap_a, gamma, TISO_an) {
-  result <- (1 - c_a) * ((T_pcr * FNpcr_a * I_a) + (T_rap * FNrap_a * I_a)) - (gamma * TISO_an)
+  result <- (1 - c_a) * ((T_pcr * (1 - FNpcr_a) * I_a) + (T_rap * (1 - FNrap_a) * I_a)) - (gamma * TISO_an)
   return(result)
 }
 
 TISO_sn_dot <- function(c_s, T_pcr, FNpcr_s, I_s, T_rap, FNrap_s, gamma, TISO_sn) {
-  result <- (1 - c_s) * ((T_pcr * FNpcr_s * I_s) + (T_rap * FNrap_s * I_s)) - (gamma * TISO_sn)
+  result <- (1 - c_s) * ((T_pcr * (1 - FNpcr_s) * I_s) + (T_rap * (1 - FNrap_s) * I_s)) - (gamma * TISO_sn)
   return(result)
 }
 
-RC_dot <- function(gamma, I_a, I_s, TFN_a, TFN_s) {
+RC_dot <- function(gamma, TISO_ap, TISO_sp, TISO_an, TISO_sn) {
   result <- gamma * (TISO_ap + TISO_sp + TISO_an + TISO_sn)
   return(result)
 }
 
-RU_dot <- function(gamma, TISO_ap, TISO_sp, TISO_an, TISO_sn) {
+RU_dot <- function(gamma, I_a, I_s, TFN_a, TFN_s) {
   result <- gamma * (I_a + I_s + TFN_a + TFN_s)
   return(result)
 }
