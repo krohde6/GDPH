@@ -194,7 +194,7 @@ library(scatterplot3d)
 library(lubridate)
 
 # Number of days in simulation
-days <- 108
+days <- 107
 
 # Sequence
 semester <- seq(1, days, by=1)
@@ -217,9 +217,25 @@ replicate_function <- function(t, state, parameters) {
   })
 }
 
-# initial state
+# Baseline
 state <- c(S_0 = 0.895, I_a = 0.0025, I_s = 0.0025, TFN_a = 0, TFN_s = 0, TISO_an = 0, TISO_sn = 0, TISO_ap = 0, TISO_sp = 0, RC = 0, RU = 0.10)
 
+baseline <- list()
+for (t in semester) {
+  times = seq(t-1, t, by=1)
+  if (t %% 7 == 0) {
+    parameters <- c(b_a = 0.1, b_s = 0.2, p0 = 0.5, c_a = 0.7, c_s = 0.9, T_pcr = 0, T_rap = 0, gamma = 0.1, FNpcr_a = 0.15, FNpcr_s = 0.15, FNrap_a = 0.3, FNrap_s = 0.3)
+  } else {
+    parameters <- c(b_a = 0.1, b_s = 0.2, p0 = 0.5, c_a = 0.7, c_s = 0.9, T_pcr = 0, T_rap = 0, gamma = 0.1, FNpcr_a = 0.15, FNpcr_s = 0.15, FNrap_a = 0.3, FNrap_s = 0.3)
+  }
+  state <- ode(y = state, times = times, func = replicate_function, parms = parameters)[2,c(2:12)]
+  baseline[[length(baseline) + 1]] <- state
+}
+
+# PCR test available to 100% of population
+state <- c(S_0 = 0.895, I_a = 0.0025, I_s = 0.0025, TFN_a = 0, TFN_s = 0, TISO_an = 0, TISO_sn = 0, TISO_ap = 0, TISO_sp = 0, RC = 0, RU = 0.10)
+
+PCR_100 <- list()
 for (t in semester) {
   times = seq(t-1, t, by=1)
   if (t %% 7 == 0) {
@@ -228,36 +244,81 @@ for (t in semester) {
     parameters <- c(b_a = 0.1, b_s = 0.2, p0 = 0.5, c_a = 0.7, c_s = 0.9, T_pcr = 0, T_rap = 0, gamma = 0.1, FNpcr_a = 0.15, FNpcr_s = 0.15, FNrap_a = 0.3, FNrap_s = 0.3)
   }
   state <- ode(y = state, times = times, func = replicate_function, parms = parameters)[2,c(2:12)]
-  if (t == days) {
-    print(state)
-  }
+  PCR_100[[length(PCR_100) + 1]] <- state
 }
 
-# Scenario 1: baseline (no testing)
-parameters <- c(b_a=0.1, b_s=0.2, p0=0.5, c_a=0.7, c_s=0.9, T_pcr=0, T_rap=0, gamma=0.1, FNpcr_a=0.15, FNpcr_s=0.15, FNrap_a=0.3, FNrap_s=0.3)
-baseline <- ode(y = state, times = times, func = replicate_function, parms = parameters)
+# PCR test available to 50% of population
+state <- c(S_0 = 0.895, I_a = 0.0025, I_s = 0.0025, TFN_a = 0, TFN_s = 0, TISO_an = 0, TISO_sn = 0, TISO_ap = 0, TISO_sp = 0, RC = 0, RU = 0.10)
 
-# Scenario 2: PCR test available to 100% of population
-parameters <- c(b_a=0.1, b_s=0.2, p0=0.5, c_a=0.7, c_s=0.9, T_pcr=1, T_rap=0, gamma=0.1, FNpcr_a=0.15, FNpcr_s=0.15, FNrap_a=0.3, FNrap_s=0.3)
-PCR_100 <- ode(y = state, times = times, func = replicate_function, parms = parameters)
+PCR_50 <- list()
+for (t in semester) {
+  times = seq(t-1, t, by=1)
+  if (t %% 7 == 0) {
+    parameters <- c(b_a = 0.1, b_s = 0.2, p0 = 0.5, c_a = 0.7, c_s = 0.9, T_pcr = 0.5, T_rap = 0, gamma = 0.1, FNpcr_a = 0.15, FNpcr_s = 0.15, FNrap_a = 0.3, FNrap_s = 0.3)
+  } else {
+    parameters <- c(b_a = 0.1, b_s = 0.2, p0 = 0.5, c_a = 0.7, c_s = 0.9, T_pcr = 0, T_rap = 0, gamma = 0.1, FNpcr_a = 0.15, FNpcr_s = 0.15, FNrap_a = 0.3, FNrap_s = 0.3)
+  }
+  state <- ode(y = state, times = times, func = replicate_function, parms = parameters)[2,c(2:12)]
+  PCR_50[[length(PCR_50) + 1]] <- state
+}
 
-# Scenario 3: PCR test available to 50% of population
-parameters <- c(b_a=0.1, b_s=0.2, p0=0.5, c_a=0.7, c_s=0.9, T_pcr=0.5, T_rap=0, gamma=0.1, FNpcr_a=0.15, FNpcr_s=0.15, FNrap_a=0.3, FNrap_s=0.3)
-PCR_50 <- ode(y = state, times = times, func = replicate_function, parms = parameters)
+# PCR test available to 33% of population
+state <- c(S_0 = 0.895, I_a = 0.0025, I_s = 0.0025, TFN_a = 0, TFN_s = 0, TISO_an = 0, TISO_sn = 0, TISO_ap = 0, TISO_sp = 0, RC = 0, RU = 0.10)
 
-# Scenario 4: PCR test available to 33% of population
-parameters <- c(b_a=0.1, b_s=0.2, p0=0.5, c_a=0.7, c_s=0.9, T_pcr=0.33, T_rap=0, gamma=0.1, FNpcr_a=0.15, FNpcr_s=0.15, FNrap_a=0.3, FNrap_s=0.3)
-PCR_33 <- ode(y = state, times = times, func = replicate_function, parms = parameters)
+PCR_33 <- list()
+for (t in semester) {
+  times = seq(t-1, t, by=1)
+  if (t %% 7 == 0) {
+    parameters <- c(b_a = 0.1, b_s = 0.2, p0 = 0.5, c_a = 0.7, c_s = 0.9, T_pcr = 0.33, T_rap = 0, gamma = 0.1, FNpcr_a = 0.15, FNpcr_s = 0.15, FNrap_a = 0.3, FNrap_s = 0.3)
+  } else {
+    parameters <- c(b_a = 0.1, b_s = 0.2, p0 = 0.5, c_a = 0.7, c_s = 0.9, T_pcr = 0, T_rap = 0, gamma = 0.1, FNpcr_a = 0.15, FNpcr_s = 0.15, FNrap_a = 0.3, FNrap_s = 0.3)
+  }
+  state <- ode(y = state, times = times, func = replicate_function, parms = parameters)[2,c(2:12)]
+  PCR_33[[length(PCR_33) + 1]] <- state
+}
 
-# Scenario 5: Rapid test availble to 100% of population
-parameters <- c(b_a=0.1, b_s=0.2, p0=0.5, c_a=0.7, c_s=0.9, T_pcr=0, T_rap=1, gamma=0.1, FNpcr_a=0.15, FNpcr_s=0.15, FNrap_a=0.3, FNrap_s=0.3)
-RAP_100 <- ode(y = state, times = times, func = replicate_function, parms = parameters)
+# Rapid test available to 100% of population
+state <- c(S_0 = 0.895, I_a = 0.0025, I_s = 0.0025, TFN_a = 0, TFN_s = 0, TISO_an = 0, TISO_sn = 0, TISO_ap = 0, TISO_sp = 0, RC = 0, RU = 0.10)
 
-# Scenario 6: Rapid test available to 50% of population
-parameters <- c(b_a=0.1, b_s=0.2, p0=0.5, c_a=0.7, c_s=0.9, T_pcr=0, T_rap=0.5, gamma=0.1, FNpcr_a=0.15, FNpcr_s=0.15, FNrap_a=0.3, FNrap_s=0.3)
-RAP_50 <- ode(y = state, times = times, func = replicate_function, parms = parameters)
+RAP_100 <- list()
+for (t in semester) {
+  times = seq(t-1, t, by=1)
+  if (t %% 7 == 0) {
+    parameters <- c(b_a = 0.1, b_s = 0.2, p0 = 0.5, c_a = 0.7, c_s = 0.9, T_pcr = 0, T_rap = 1, gamma = 0.1, FNpcr_a = 0.15, FNpcr_s = 0.15, FNrap_a = 0.3, FNrap_s = 0.3)
+  } else {
+    parameters <- c(b_a = 0.1, b_s = 0.2, p0 = 0.5, c_a = 0.7, c_s = 0.9, T_pcr = 0, T_rap = 0, gamma = 0.1, FNpcr_a = 0.15, FNpcr_s = 0.15, FNrap_a = 0.3, FNrap_s = 0.3)
+  }
+  state <- ode(y = state, times = times, func = replicate_function, parms = parameters)[2,c(2:12)]
+  RAP_100[[length(RAP_100) + 1]] <- state
+}
 
-# Scenario 7: Rapid test available to 33% of population
-parameters <- c(b_a=0.1, b_s=0.2, p0=0.5, c_a=0.7, c_s=0.9, T_pcr=0, T_rap=0.33, gamma=0.1, FNpcr_a=0.15, FNpcr_s=0.15, FNrap_a=0.3, FNrap_s=0.3)
-RAP_33 <- ode(y = state, times = times, func = replicate_function, parms = parameters)
+# Rapid test available to 50% of population
+state <- c(S_0 = 0.895, I_a = 0.0025, I_s = 0.0025, TFN_a = 0, TFN_s = 0, TISO_an = 0, TISO_sn = 0, TISO_ap = 0, TISO_sp = 0, RC = 0, RU = 0.10)
+
+RAP_50 <- list()
+for (t in semester) {
+  times = seq(t-1, t, by=1)
+  if (t %% 7 == 0) {
+    parameters <- c(b_a = 0.1, b_s = 0.2, p0 = 0.5, c_a = 0.7, c_s = 0.9, T_pcr = 0, T_rap = 0.5, gamma = 0.1, FNpcr_a = 0.15, FNpcr_s = 0.15, FNrap_a = 0.3, FNrap_s = 0.3)
+  } else {
+    parameters <- c(b_a = 0.1, b_s = 0.2, p0 = 0.5, c_a = 0.7, c_s = 0.9, T_pcr = 0, T_rap = 0, gamma = 0.1, FNpcr_a = 0.15, FNpcr_s = 0.15, FNrap_a = 0.3, FNrap_s = 0.3)
+  }
+  state <- ode(y = state, times = times, func = replicate_function, parms = parameters)[2,c(2:12)]
+  RAP_50[[length(RAP_50) + 1]] <- state
+}
+
+# Rapid test available to 33% of population
+state <- c(S_0 = 0.895, I_a = 0.0025, I_s = 0.0025, TFN_a = 0, TFN_s = 0, TISO_an = 0, TISO_sn = 0, TISO_ap = 0, TISO_sp = 0, RC = 0, RU = 0.10)
+
+RAP_33 <- list()
+for (t in semester) {
+  times = seq(t-1, t, by=1)
+  if (t %% 7 == 0) {
+    parameters <- c(b_a = 0.1, b_s = 0.2, p0 = 0.5, c_a = 0.7, c_s = 0.9, T_pcr = 0, T_rap = 0.33, gamma = 0.1, FNpcr_a = 0.15, FNpcr_s = 0.15, FNrap_a = 0.3, FNrap_s = 0.3)
+  } else {
+    parameters <- c(b_a = 0.1, b_s = 0.2, p0 = 0.5, c_a = 0.7, c_s = 0.9, T_pcr = 0, T_rap = 0, gamma = 0.1, FNpcr_a = 0.15, FNpcr_s = 0.15, FNrap_a = 0.3, FNrap_s = 0.3)
+  }
+  state <- ode(y = state, times = times, func = replicate_function, parms = parameters)[2,c(2:12)]
+  RAP_33[[length(RAP_33) + 1]] <- state
+}
 ```
