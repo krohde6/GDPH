@@ -184,15 +184,24 @@ RU_dot <- function(gamma, I_a, I_s, TFN_a, TFN_s) {
 }
 ```
 
-Now we run the simulation against various testing availabilities, beginning with the baseline test (no testing available).
+Now we run the simulation against various testing availability, beginning with the baseline test (no testing available).
 
-The following attempts to use the deSolve package in order to solve the ODEs from the paper as instructed by April Yu. 
+The following code defines a sequence for the semester, a function including all of the state equations, and a function that loops through the days, solving the differential of all equations for each day of the semester. The function `run_simulation` takes 
 
-```{r}
+* `state`: The initial state of the system,
+* `testing`: The parameters for a day in which testing occurs
+* `no_testing`: The parameters for a day in which no testing occurs
+* `semester`: A time sequence representing the simulation semester
+
+and returns a list containing the values of each state for each day. 
+
+```{r, results='hide'}
 library(deSolve)
 library(scatterplot3d)
 library(lubridate)
+```
 
+```{r}
 # Number of days in simulation
 days <- 107
 
@@ -200,7 +209,7 @@ days <- 107
 semester <- seq(1, days, by=1)
 
 # Define generic value update function
-replicate_function <- function(t, state, parameters) {
+differentials <- function(t, state, parameters) {
   with(as.list(c(state, parameters)), {
     dS <- S_dot(b_a, S_0, I_a, TFN_a, TISO_an, b_s, I_s, TFN_s, TISO_sn)
     dI_a <- I_a_dot(p0, b_a, S_0, I_a, TFN_a, TISO_an, b_s, I_s, TFN_s, TISO_sn, T_pcr, T_rap, gamma)
@@ -217,108 +226,59 @@ replicate_function <- function(t, state, parameters) {
   })
 }
 
-# Baseline
-state <- c(S_0 = 0.895, I_a = 0.0025, I_s = 0.0025, TFN_a = 0, TFN_s = 0, TISO_an = 0, TISO_sn = 0, TISO_ap = 0, TISO_sp = 0, RC = 0, RU = 0.10)
-
-baseline <- list()
-for (t in semester) {
-  times = seq(t-1, t, by=1)
-  if (t %% 7 == 0) {
-    parameters <- c(b_a = 0.1, b_s = 0.2, p0 = 0.5, c_a = 0.7, c_s = 0.9, T_pcr = 0, T_rap = 0, gamma = 0.1, FNpcr_a = 0.15, FNpcr_s = 0.15, FNrap_a = 0.3, FNrap_s = 0.3)
-  } else {
-    parameters <- c(b_a = 0.1, b_s = 0.2, p0 = 0.5, c_a = 0.7, c_s = 0.9, T_pcr = 0, T_rap = 0, gamma = 0.1, FNpcr_a = 0.15, FNpcr_s = 0.15, FNrap_a = 0.3, FNrap_s = 0.3)
+run_simulation <- function(state, testing, no_testing, semester) {
+  states <- list()
+  for (t in semester) {
+    day <- seq(t - 1, t, by=1)
+    if (t %% 7 == 0) {
+      parameters <- testing
+    } else {
+      parameters <- no_testing
+    }
+    state <- ode(y = state, times = day, func = differentials, parms = parameters)[2,c(2:12)]
+    states[[length(states) + 1]] <- state
   }
-  state <- ode(y = state, times = times, func = replicate_function, parms = parameters)[2,c(2:12)]
-  baseline[[length(baseline) + 1]] <- state
+  return(states)
 }
+```
+
+Now that the functions for solving the system have been defined, we run the simulation against all different testing scenarios, beginning with the baseline. The variables `baseline`, `PCR_100`, `PCR_50`, `PCR_33`, `RAP_100`, `RAP_50`, and `RAP_33` hold all state values for each day where `PCR` represents PCR testing and `RAP` represents Rapid Testing.
+
+```{r}
+initial_state <- c(S_0 = 0.895, I_a = 0.0025, I_s = 0.0025, TFN_a = 0, TFN_s = 0, TISO_an = 0, TISO_sn = 0, TISO_ap = 0, TISO_sp = 0, RC = 0, RU = 0.10)
+
+# Baseline
+testing <- c(b_a = 0.1, b_s = 0.2, p0 = 0.5, c_a = 0.7, c_s = 0.9, T_pcr = 0, T_rap = 0, gamma = 0.1, FNpcr_a = 0.15, FNpcr_s = 0.15, FNrap_a = 0.3, FNrap_s = 0.3)
+no_testing <- c(b_a = 0.1, b_s = 0.2, p0 = 0.5, c_a = 0.7, c_s = 0.9, T_pcr = 0, T_rap = 0, gamma = 0.1, FNpcr_a = 0.15, FNpcr_s = 0.15, FNrap_a = 0.3, FNrap_s = 0.3)
+baseline <- run_simulation(initial_state, testing, no_testing, semester)
 
 # PCR test available to 100% of population
-state <- c(S_0 = 0.895, I_a = 0.0025, I_s = 0.0025, TFN_a = 0, TFN_s = 0, TISO_an = 0, TISO_sn = 0, TISO_ap = 0, TISO_sp = 0, RC = 0, RU = 0.10)
-
-PCR_100 <- list()
-for (t in semester) {
-  times = seq(t-1, t, by=1)
-  if (t %% 7 == 0) {
-    parameters <- c(b_a = 0.1, b_s = 0.2, p0 = 0.5, c_a = 0.7, c_s = 0.9, T_pcr = 1, T_rap = 0, gamma = 0.1, FNpcr_a = 0.15, FNpcr_s = 0.15, FNrap_a = 0.3, FNrap_s = 0.3)
-  } else {
-    parameters <- c(b_a = 0.1, b_s = 0.2, p0 = 0.5, c_a = 0.7, c_s = 0.9, T_pcr = 0, T_rap = 0, gamma = 0.1, FNpcr_a = 0.15, FNpcr_s = 0.15, FNrap_a = 0.3, FNrap_s = 0.3)
-  }
-  state <- ode(y = state, times = times, func = replicate_function, parms = parameters)[2,c(2:12)]
-  PCR_100[[length(PCR_100) + 1]] <- state
-}
+testing <- c(b_a = 0.1, b_s = 0.2, p0 = 0.5, c_a = 0.7, c_s = 0.9, T_pcr = 1, T_rap = 0, gamma = 0.1, FNpcr_a = 0.15, FNpcr_s = 0.15, FNrap_a = 0.3, FNrap_s = 0.3)
+no_testing <- c(b_a = 0.1, b_s = 0.2, p0 = 0.5, c_a = 0.7, c_s = 0.9, T_pcr = 0, T_rap = 0, gamma = 0.1, FNpcr_a = 0.15, FNpcr_s = 0.15, FNrap_a = 0.3, FNrap_s = 0.3)
+PCR_100 <- run_simulation(initial_state, testing, no_testing, semester)
 
 # PCR test available to 50% of population
-state <- c(S_0 = 0.895, I_a = 0.0025, I_s = 0.0025, TFN_a = 0, TFN_s = 0, TISO_an = 0, TISO_sn = 0, TISO_ap = 0, TISO_sp = 0, RC = 0, RU = 0.10)
-
-PCR_50 <- list()
-for (t in semester) {
-  times = seq(t-1, t, by=1)
-  if (t %% 7 == 0) {
-    parameters <- c(b_a = 0.1, b_s = 0.2, p0 = 0.5, c_a = 0.7, c_s = 0.9, T_pcr = 0.5, T_rap = 0, gamma = 0.1, FNpcr_a = 0.15, FNpcr_s = 0.15, FNrap_a = 0.3, FNrap_s = 0.3)
-  } else {
-    parameters <- c(b_a = 0.1, b_s = 0.2, p0 = 0.5, c_a = 0.7, c_s = 0.9, T_pcr = 0, T_rap = 0, gamma = 0.1, FNpcr_a = 0.15, FNpcr_s = 0.15, FNrap_a = 0.3, FNrap_s = 0.3)
-  }
-  state <- ode(y = state, times = times, func = replicate_function, parms = parameters)[2,c(2:12)]
-  PCR_50[[length(PCR_50) + 1]] <- state
-}
+testing <- c(b_a = 0.1, b_s = 0.2, p0 = 0.5, c_a = 0.7, c_s = 0.9, T_pcr = 0.5, T_rap = 0, gamma = 0.1, FNpcr_a = 0.15, FNpcr_s = 0.15, FNrap_a = 0.3, FNrap_s = 0.3)
+no_testing <- c(b_a = 0.1, b_s = 0.2, p0 = 0.5, c_a = 0.7, c_s = 0.9, T_pcr = 0, T_rap = 0, gamma = 0.1, FNpcr_a = 0.15, FNpcr_s = 0.15, FNrap_a = 0.3, FNrap_s = 0.3)
+PCR_50 <- run_simulation(initial_state, testing, no_testing, semester)
 
 # PCR test available to 33% of population
-state <- c(S_0 = 0.895, I_a = 0.0025, I_s = 0.0025, TFN_a = 0, TFN_s = 0, TISO_an = 0, TISO_sn = 0, TISO_ap = 0, TISO_sp = 0, RC = 0, RU = 0.10)
-
-PCR_33 <- list()
-for (t in semester) {
-  times = seq(t-1, t, by=1)
-  if (t %% 7 == 0) {
-    parameters <- c(b_a = 0.1, b_s = 0.2, p0 = 0.5, c_a = 0.7, c_s = 0.9, T_pcr = 0.33, T_rap = 0, gamma = 0.1, FNpcr_a = 0.15, FNpcr_s = 0.15, FNrap_a = 0.3, FNrap_s = 0.3)
-  } else {
-    parameters <- c(b_a = 0.1, b_s = 0.2, p0 = 0.5, c_a = 0.7, c_s = 0.9, T_pcr = 0, T_rap = 0, gamma = 0.1, FNpcr_a = 0.15, FNpcr_s = 0.15, FNrap_a = 0.3, FNrap_s = 0.3)
-  }
-  state <- ode(y = state, times = times, func = replicate_function, parms = parameters)[2,c(2:12)]
-  PCR_33[[length(PCR_33) + 1]] <- state
-}
+testing <- c(b_a = 0.1, b_s = 0.2, p0 = 0.5, c_a = 0.7, c_s = 0.9, T_pcr = 0.33, T_rap = 0, gamma = 0.1, FNpcr_a = 0.15, FNpcr_s = 0.15, FNrap_a = 0.3, FNrap_s = 0.3)
+no_testing <- c(b_a = 0.1, b_s = 0.2, p0 = 0.5, c_a = 0.7, c_s = 0.9, T_pcr = 0, T_rap = 0, gamma = 0.1, FNpcr_a = 0.15, FNpcr_s = 0.15, FNrap_a = 0.3, FNrap_s = 0.3)
+PCR_33 <- run_simulation(initial_state, testing, no_testing, semester)
 
 # Rapid test available to 100% of population
-state <- c(S_0 = 0.895, I_a = 0.0025, I_s = 0.0025, TFN_a = 0, TFN_s = 0, TISO_an = 0, TISO_sn = 0, TISO_ap = 0, TISO_sp = 0, RC = 0, RU = 0.10)
-
-RAP_100 <- list()
-for (t in semester) {
-  times = seq(t-1, t, by=1)
-  if (t %% 7 == 0) {
-    parameters <- c(b_a = 0.1, b_s = 0.2, p0 = 0.5, c_a = 0.7, c_s = 0.9, T_pcr = 0, T_rap = 1, gamma = 0.1, FNpcr_a = 0.15, FNpcr_s = 0.15, FNrap_a = 0.3, FNrap_s = 0.3)
-  } else {
-    parameters <- c(b_a = 0.1, b_s = 0.2, p0 = 0.5, c_a = 0.7, c_s = 0.9, T_pcr = 0, T_rap = 0, gamma = 0.1, FNpcr_a = 0.15, FNpcr_s = 0.15, FNrap_a = 0.3, FNrap_s = 0.3)
-  }
-  state <- ode(y = state, times = times, func = replicate_function, parms = parameters)[2,c(2:12)]
-  RAP_100[[length(RAP_100) + 1]] <- state
-}
+testing <- c(b_a = 0.1, b_s = 0.2, p0 = 0.5, c_a = 0.7, c_s = 0.9, T_pcr = 0, T_rap = 1, gamma = 0.1, FNpcr_a = 0.15, FNpcr_s = 0.15, FNrap_a = 0.3, FNrap_s = 0.3)
+no_testing <- c(b_a = 0.1, b_s = 0.2, p0 = 0.5, c_a = 0.7, c_s = 0.9, T_pcr = 0, T_rap = 0, gamma = 0.1, FNpcr_a = 0.15, FNpcr_s = 0.15, FNrap_a = 0.3, FNrap_s = 0.3)
+RAP_100 <- run_simulation(initial_state, testing, no_testing, semester)
 
 # Rapid test available to 50% of population
-state <- c(S_0 = 0.895, I_a = 0.0025, I_s = 0.0025, TFN_a = 0, TFN_s = 0, TISO_an = 0, TISO_sn = 0, TISO_ap = 0, TISO_sp = 0, RC = 0, RU = 0.10)
+testing <- c(b_a = 0.1, b_s = 0.2, p0 = 0.5, c_a = 0.7, c_s = 0.9, T_pcr = 0, T_rap = 0.5, gamma = 0.1, FNpcr_a = 0.15, FNpcr_s = 0.15, FNrap_a = 0.3, FNrap_s = 0.3)
+no_testing <- c(b_a = 0.1, b_s = 0.2, p0 = 0.5, c_a = 0.7, c_s = 0.9, T_pcr = 0, T_rap = 0, gamma = 0.1, FNpcr_a = 0.15, FNpcr_s = 0.15, FNrap_a = 0.3, FNrap_s = 0.3)
+RAP_50 <- run_simulation(initial_state, testing, no_testing, semester)
 
-RAP_50 <- list()
-for (t in semester) {
-  times = seq(t-1, t, by=1)
-  if (t %% 7 == 0) {
-    parameters <- c(b_a = 0.1, b_s = 0.2, p0 = 0.5, c_a = 0.7, c_s = 0.9, T_pcr = 0, T_rap = 0.5, gamma = 0.1, FNpcr_a = 0.15, FNpcr_s = 0.15, FNrap_a = 0.3, FNrap_s = 0.3)
-  } else {
-    parameters <- c(b_a = 0.1, b_s = 0.2, p0 = 0.5, c_a = 0.7, c_s = 0.9, T_pcr = 0, T_rap = 0, gamma = 0.1, FNpcr_a = 0.15, FNpcr_s = 0.15, FNrap_a = 0.3, FNrap_s = 0.3)
-  }
-  state <- ode(y = state, times = times, func = replicate_function, parms = parameters)[2,c(2:12)]
-  RAP_50[[length(RAP_50) + 1]] <- state
-}
-
-# Rapid test available to 33% of population
-state <- c(S_0 = 0.895, I_a = 0.0025, I_s = 0.0025, TFN_a = 0, TFN_s = 0, TISO_an = 0, TISO_sn = 0, TISO_ap = 0, TISO_sp = 0, RC = 0, RU = 0.10)
-
-RAP_33 <- list()
-for (t in semester) {
-  times = seq(t-1, t, by=1)
-  if (t %% 7 == 0) {
-    parameters <- c(b_a = 0.1, b_s = 0.2, p0 = 0.5, c_a = 0.7, c_s = 0.9, T_pcr = 0, T_rap = 0.33, gamma = 0.1, FNpcr_a = 0.15, FNpcr_s = 0.15, FNrap_a = 0.3, FNrap_s = 0.3)
-  } else {
-    parameters <- c(b_a = 0.1, b_s = 0.2, p0 = 0.5, c_a = 0.7, c_s = 0.9, T_pcr = 0, T_rap = 0, gamma = 0.1, FNpcr_a = 0.15, FNpcr_s = 0.15, FNrap_a = 0.3, FNrap_s = 0.3)
-  }
-  state <- ode(y = state, times = times, func = replicate_function, parms = parameters)[2,c(2:12)]
-  RAP_33[[length(RAP_33) + 1]] <- state
-}
+# PCR test available to 33% of population
+testing <- c(b_a = 0.1, b_s = 0.2, p0 = 0.5, c_a = 0.7, c_s = 0.9, T_pcr = 0, T_rap = 0.33, gamma = 0.1, FNpcr_a = 0.15, FNpcr_s = 0.15, FNrap_a = 0.3, FNrap_s = 0.3)
+no_testing <- c(b_a = 0.1, b_s = 0.2, p0 = 0.5, c_a = 0.7, c_s = 0.9, T_pcr = 0, T_rap = 0, gamma = 0.1, FNpcr_a = 0.15, FNpcr_s = 0.15, FNrap_a = 0.3, FNrap_s = 0.3)
+RAP_33 <- run_simulation(initial_state, testing, no_testing, semester)
 ```
