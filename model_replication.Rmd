@@ -6,6 +6,10 @@ output:
   html_document: default
   pdf_document: default
 <<<<<<< Updated upstream
+<<<<<<< Updated upstream
+=======
+  word_document: default
+>>>>>>> Stashed changes
 =======
   word_document: default
 >>>>>>> Stashed changes
@@ -130,6 +134,7 @@ generate_school_population <- function() {
   return(school_population)
 }
 
+
 generate_default_school <- function() {
   school <- hash()
   school["population"]       <- generate_school_population()
@@ -141,6 +146,7 @@ generate_default_school <- function() {
   school["pcr_testing"]      <- 0
   return(school)
 }
+
 
 get_unique_districts <- function(data) {
   districts <- c(data$SCHOOL_DSTRCT_CD)
@@ -160,6 +166,54 @@ populate_schools <- function(data) {
 }
 
 schools <- populate_schools(data)
+
+#for (s in names(schools)) {
+#  print(s)
+#}
+
+
+generate_school_population2 <- function() {
+  school_population <- hash()
+  school_population["K"]     <- as.integer(readline(prompt = "How many students are in the Kindergarten grade? "))
+  school_population["1"]     <- as.integer(readline(prompt = "How many students are in the 1st grade? "))
+  school_population["2"]     <- as.integer(readline(prompt = "How many students are in the 2nd grade? "))
+  school_population["3"]     <- as.integer(readline(prompt = "How many students are in the 3rd grade? "))
+  school_population["4"]     <- as.integer(readline(prompt = "How many students are in the 4th grade? "))
+  school_population["5"]     <- as.integer(readline(prompt = "How many students are in the 5th grade? "))
+  school_population["6"]     <- as.integer(readline(prompt = "How many students are in the 6th grade? "))
+  school_population["7"]     <- as.integer(readline(prompt = "How many students are in the 7th grade? "))
+  school_population["8"]     <- as.integer(readline(prompt = "How many students are in the 8th grade? "))
+  school_population["9"]     <- as.integer(readline(prompt = "How many students are in the 9th grade? "))
+  school_population["10"]    <- as.integer(readline(prompt = "How many students are in the 10th grade? "))
+  school_population["11"]    <- as.integer(readline(prompt = "How many students are in the 11th grade? "))
+  school_population["12"]    <- as.integer(readline(prompt = "How many students are in the 12th grade? "))
+  school_population["staff"] <- as.integer(readline(prompt = "How many staff members and faculty do you have? "))
+  return(school_population)
+}
+
+generate_default_school2 <- function() {
+  school <- hash()
+  school["population"]       <- generate_school_population2()
+  school["environment_type"] <- "Urban"
+  school["days"]             <- as.integer(readline(prompt = "How many days do you want to run the simulation for? "))
+  school["mask_compliance"]  <- as.numeric(readline(prompt = "What is your school's masking compliance rate? "))
+  school["vaccinations"]     <- as.numeric(readline(prompt = "What is your school's vaccination rate? "))
+  school["rap_testing"]      <- as.numeric(readline(prompt = "What is your school's rapid test availability? (Please enter a percentage of the population with access to rapid testing) "))
+  school["pcr_testing"]      <- as.numeric(readline(prompt = "What is your school's PCR test availability? (Please enter a percentage of the population with access to PCR testing) "))
+  return(school)
+}
+
+enter_school <- function() {
+  enter_school_name <- readline(prompt = "Enter your school name: ")
+  schools[enter_school_name] <- generate_default_school2()
+  return(schools[enter_school_name])
+}
+
+test = enter_school()
+test
+
+
+
 ```
 
 Below is the R code for defining the initial values and constants of the system.
