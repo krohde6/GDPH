@@ -87,10 +87,9 @@ Below are the variable definitions
 
 ```{r}
 library("readxl")
-library("writexl")
 
-# load dataset $ remove unecessary columns
-data <- read_excel("/Users/kyle/school/fall2021/senior_design/GDPH/enrollment.xlsx")
+# load dataset & remove unecessary columns
+data <- read_excel("enrollment.xlsx")
 attach(data)
 
 data <- subset(data, DETAIL_LVL_DESC!="District" & DETAIL_LVL_DESC!="State")
@@ -102,30 +101,40 @@ data <- subset(data, select = -c(LONG_SCHOOL_YEAR,
                                  GRADE_LEVEL,
                                  ENROLLMENT_COUNT,
                                  DETAIL_LVL_DESC))
-
-write_xlsx(data, "/Users/kyle/school/fall2021/senior_design/GDPH/exported_data.xlsx")
 ```
 
 ```{r}
 library(hash)
 
-initialize_school_population <- function() {
-  grade_population <- hash()
-  grade_population["K"] <- 0
-  grade_population["1"] <- 0
-  grade_population["2"] <- 0
-  grade_population["3"] <- 0
-  grade_population["4"] <- 0
-  grade_population["5"] <- 0
-  grade_population["6"] <- 0
-  grade_population["7"] <- 0
-  grade_population["8"] <- 0
-  grade_population["9"] <- 0
-  grade_population["10"] <- 0
-  grade_population["11"] <- 0
-  grade_population["12"] <- 0
-  grade_population["staff"] <- 0 # should include faculty
-  return(grade_population)
+generate_school_population <- function() {
+  school_population <- hash()
+  school_population["K"]     <- 0
+  school_population["1"]     <- 0
+  school_population["2"]     <- 0
+  school_population["3"]     <- 0
+  school_population["4"]     <- 0
+  school_population["5"]     <- 0
+  school_population["6"]     <- 0
+  school_population["7"]     <- 0
+  school_population["8"]     <- 0
+  school_population["9"]     <- 0
+  school_population["10"]    <- 0
+  school_population["11"]    <- 0
+  school_population["12"]    <- 0
+  school_population["staff"] <- 0 # should include faculty
+  return(school_population)
+}
+
+generate_default_school <- function() {
+  school <- hash()
+  school["population"]       <- generate_school_population()
+  school["environment_type"] <- "Urban"
+  school["days"]             <- 107
+  school["mask_compliance"]  <- 0
+  school["vaccinations"]     <- 0
+  school["rap_testing"]      <- 0
+  school["pcr_testing"]      <- 0
+  return(school)
 }
 
 get_unique_districts <- function(data) {
@@ -133,36 +142,19 @@ get_unique_districts <- function(data) {
   return(unique(districts))
 }
 
-districts <- get_unique_districts(data)
-districts
-
 populate_schools <- function(data) {
   schools <- hash()
-  for (row in data) {
-    school_name <- row$INSTN_NAME
-    print(school_name)
+  for (i in 1:nrow(data)) {
+    school_name <- data[i, 3]
     if (has.key(school_name, schools)) {
       next
     }
-    district_number <- row[3]
-    districts <- get_unique_districts(data)
-    environment_type <- districts[district_number]
-    grade_population <- initialize_school_population()
-    school <- hash()
-    school["population"] <- grade_population
-    school["environment_type"] <- environment_type
-    school["days"] <- 107
-    school["mask_compliance"] <- 0
-    school["vaccinations"] <- 0
-    school["rap_testing"] <- 0
-    school["pcr_testing"] <- 0
-    schools[school_name] <- school
+    schools[school_name] <- generate_default_school()
   }
   return(schools)
 }
 
 schools <- populate_schools(data)
-print(schools)
 ```
 
 Below is the R code for defining the initial values and constants of the system.
@@ -337,7 +329,6 @@ The scenarios for the simuations are as follows:
 testing <- c(b_a = b_a, b_s = b_s, p0 = p0, c_a = c_a, c_s = c_s, T_pcr = 0, T_rap = 0, gamma = gamma, FNpcr_a = FNpcr_a, FNpcr_s = FNpcr_s, FNrap_a = FNrap_a, FNrap_s = FNrap_s)
 no_testing <- c(b_a = b_a, b_s = b_s, p0 = p0, c_a = c_a, c_s = c_s, T_pcr = 0, T_rap = 0, gamma = gamma, FNpcr_a = FNpcr_a, FNpcr_s = FNpcr_s, FNrap_a = FNrap_a, FNrap_s = FNrap_s)
 baseline <- run_simulation(initial_state, testing, no_testing, semester)
-baseline
 
 # PCR test available to 100% of population
 testing <- c(b_a = b_a, b_s = b_s, p0 = p0, c_a = c_a, c_s = c_s, T_pcr = 1, T_rap = 0, gamma = gamma, FNpcr_a = FNpcr_a, FNpcr_s = FNpcr_s, FNrap_a = FNrap_a, FNrap_s = FNrap_s)
