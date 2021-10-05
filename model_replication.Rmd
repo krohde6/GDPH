@@ -88,19 +88,21 @@ Below are the variable definitions
 ```{r}
 library("readxl")
 
-# load dataset & remove unecessary columns
-data <- read_excel("enrollment.xlsx")
+# load dataset & remove unnecessary columns
+data <- read.csv("county_cases.csv", header = TRUE)
 attach(data)
 
-data <- subset(data, DETAIL_LVL_DESC!="District" & DETAIL_LVL_DESC!="State")
-data <- subset(data, select = -c(LONG_SCHOOL_YEAR, 
-                                 ENVIRONMENT,
-                                 INSTN_NUMBER,
-                                 GRADES_SERVED_DESC,
-                                 ENROLLMENT_PERIOD,
-                                 GRADE_LEVEL,
-                                 ENROLLMENT_COUNT,
-                                 DETAIL_LVL_DESC))
+county_data <- subset(data, select = -c(county_id, 
+                                 State.FIPS.code,
+                                 County.FIPS.code,
+                                 hospitalization,
+                                 deaths,
+                                 case.rate,
+                                 death.rate,
+                                 X14.day.case.rate,
+                                 antigen_cases,
+                                 probable_deaths))
+head(county_data)
 ```
 
 ```{r}
@@ -142,17 +144,39 @@ generate_default_school <- function() {
   return(school)
 }
 
+```
+
+The following calculates the initial states for each county using publicly available, county-level data from the DPH website and adds them to a data frame with the following column-headers for each county: County Name (county_name), Total Number of Cases per County (cases), Total Population per County (population), Number of New Cases in the Past 14 Days per County (X14.day.cases), Initial Susceptibility (S_0), Initial Infected Symptomatic (I_s), Initial Infected Asymptomatic (I_a), Initial Recovered Unknown (R_u), and the Total Sum of Initial States (total).
+
+```{r}
 initial_susceptibility <- function(county_data) {
-  # (population - total cases) / (county population)
+  result <- (county_data$population - county_data$cases)/county_data$population
+  return(result)
 }
 
-initial_infected <- function(county_data) {
-  # (past 14 day cases) / (county population)
+initial_infected_symptomatic <- function(county_data) {
+  result <- ((county_data$X14.day.cases)/county_data$population)*0.5
+  return(result)
 }
 
-recovered <- function(county_data) {
-  # (total cases - past 14 day cases) / (county population)
+initial_infected_asymptomatic <- function(county_data) {
+  result <- ((county_data$X14.day.cases)/county_data$population)*0.5
+  return(result)
 }
+
+initial_recovered_unknown <- function(county_data) {
+  result <- (county_data$cases - county_data$X14.day.cases)/county_data$population
+  return(result)
+}
+
+county_data$S_0 <- initial_susceptibility(county_data)
+county_data$I_s <- initial_infected_symptomatic(county_data)
+county_data$I_a <- initial_infected_asymptomatic(county_data)
+county_data$R_u <- initial_recovered_unknown(county_data)
+
+county_data$total <- county_data$S_0 + county_data$I_s + county_data$I_a + county_data$R_u
+
+head(county_data)
 ```
 
 Below is the R code for defining the initial values and constants of the system.
@@ -176,9 +200,9 @@ FPrap_s = 0.10  # false positive rate of a rapid test for symptomatic patients
 
 # Initial values
 S_0 = initial_susceptibility(county_data)     # initial susceptibility of the student body
-I_s = initial_infected(county_data) / 2    # initial infected and symptomatic
-I_a = initial_infected(county_data) / 2    # initial infected and asymptomatic
-R_u = 0.10      # initial recovered unknown
+I_s = initial_infected_symptomatic(county_data)    # initial infected and symptomatic
+I_a = initial_infected_asymptomatic(county_data)    # initial infected and asymptomatic
+R_u = initial_recovered_unknown(county_data)      # initial recovered unknown
 R_c = 0.0       # initial recovered confirmed
 
 # Initial test values (no tests administered)
