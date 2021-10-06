@@ -176,6 +176,8 @@ county_data$R_u <- initial_recovered_unknown(county_data)
 
 county_data$total <- county_data$S_0 + county_data$I_s + county_data$I_a + county_data$R_u
 
+county_data
+
 # We should exclude Non-GA Resident and Unknown
 
 
@@ -338,9 +340,15 @@ run_simulation <- function(state, testing, no_testing, semester) {
 
 
 ```{r}
-# Input county and run simulation
-# Kyle may be working on this 
+# Input county and run simulation, not sure if this equation is even helpful, but at some point we will need to loop through all counties and store their initial states in this format?
 
+get_county_initial_state <- function(county_data, county) {
+  single_county <- county_data[which(county_data$county_name == county), ]
+  initial_state <- c(S_0 = single_county$S_0, I_a = single_county$I_a, I_s = single_county$I_s, TFN_a = TFN_a, TFN_s = TFN_s, TISO_an = TISO_an, TISO_sn = TISO_sn, TISO_ap = TISO_ap, TISO_sp = TISO_sp, RC = R_c, RU = single_county$R_u)
+}
+
+test <- get_county_initial_state(county_data, "Bacon")
+test
 ```
 
 ```{r}
