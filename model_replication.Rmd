@@ -176,7 +176,9 @@ county_data$R_u <- initial_recovered_unknown(county_data)
 
 county_data$total <- county_data$S_0 + county_data$I_s + county_data$I_a + county_data$R_u
 
-head(county_data)
+# We should exclude Non-GA Resident and Unknown
+
+
 ```
 
 Below is the R code for defining the initial values and constants of the system.
@@ -228,18 +230,18 @@ initial_state <- c(S_0 = S_0, I_a = I_a, I_s = I_s, TFN_a = TFN_a, TFN_s = TFN_s
 The following code defines the differential equations for the change in the states over time. The functions allow the user to input current values for the states and returns the derivative at that time step. 
 
 ```{r}
-S_dot <- function(b_a, S_0, I_a, TFN_a, TISO_an, b_s, I_s, TFN_s, TISO_sn) {
-  result <- (-b_a * S_0 * (I_a + TFN_a + TISO_an)) - (b_s * S_0 * (I_s + TFN_s + TISO_sn))
+S_dot <- function(b_a, MC, VR_s, VR_f, S_0, I_a, TFN_a, TISO_an, b_s, I_s, TFN_s, TISO_sn) {
+  result <- (-b_a * (1 - MC) * (1 - (Vr_s + VR_f)) * S_0 * (I_a + TFN_a + TISO_an)) - (b_s * (1 - MC) * (1 - VR) * S_0 * (I_s + TFN_s + TISO_sn))
   return(result)
 }
 
-I_a_dot <- function(p0, b_a, S_0, I_a, TFN_a, TISO_an, b_s, I_s, TFN_s, TISO_sn, T_pcr, T_rap, gamma) {
-  result <- (1 - p0) * ((b_a * S_0 * (I_a + TFN_a + TISO_an)) + (b_s * S_0 * (I_s + TFN_s + TISO_sn))) - (T_pcr * I_a) - (T_rap * I_a) - (gamma * I_a)
+I_a_dot <- function(p0, b_a, MC, VR_s, VR_f, S_0, I_a, TFN_a, TISO_an, b_s, I_s, TFN_s, TISO_sn, T_pcr, T_rap, gamma) {
+  result <- (1 - p0) * ((b_a * (1 - MC) * (1 - (Vr_s + VR_f)) * S_0 * (I_a + TFN_a + TISO_an)) + (b_s * (1 - MC) * (1 - VR) * S_0 * (I_s + TFN_s + TISO_sn))) - (T_pcr * I_a) - (T_rap * I_a) - (gamma * I_a)
   return(result)
 }
 
-I_s_dot <- function(p0, b_a, S_0, I_a, TFN_a, TISO_an, b_s, I_s, TFN_s, TISO_sn, T_pcr, T_rap, gamma) {
-  result <- p0 * ((b_a * S_0 * (I_a + TFN_a + TISO_an)) + (b_s * S_0 * (I_s + TFN_s + TISO_sn))) - (T_pcr * I_s) - (T_rap * I_s) - (gamma * I_s)
+I_s_dot <- function(p0, b_a, MC, VR_s, VR_f, S_0, I_a, TFN_a, TISO_an, b_s, I_s, TFN_s, TISO_sn, T_pcr, T_rap, gamma) {
+  result <- p0 * ((b_a * (1 - MC) * (1 - (Vr_s + VR_f)) * S_0 * (I_a + TFN_a + TISO_an)) + (b_s * (1 - MC) * (1 - VR) * S_0 * (I_s + TFN_s + TISO_sn))) - (T_pcr * I_s) - (T_rap * I_s) - (gamma * I_s)
   return(result)
 }
 
@@ -303,9 +305,9 @@ library(lubridate)
 # Define generic differential update function
 differentials <- function(t, state, parameters) {
   with(as.list(c(state, parameters)), {
-    dS <- S_dot(b_a, S_0, I_a, TFN_a, TISO_an, b_s, I_s, TFN_s, TISO_sn)
-    dI_a <- I_a_dot(p0, b_a, S_0, I_a, TFN_a, TISO_an, b_s, I_s, TFN_s, TISO_sn, T_pcr, T_rap, gamma)
-    dI_s <- I_s_dot(p0, b_a, S_0, I_a, TFN_a, TISO_an, b_s, I_s, TFN_s, TISO_sn, T_pcr, T_rap, gamma)
+    dS <- S_dot(b_a, MC, VR_s, VR_f, S_0, I_a, TFN_a, TISO_an, b_s, I_s, TFN_s, TISO_sn)
+    dI_a <- I_a_dot(p0, b_a, MC, VR_s, VR_f, S_0, I_a, TFN_a, TISO_an, b_s, I_s, TFN_s, TISO_sn, T_pcr, T_rap, gamma)
+    dI_s <- I_s_dot(p0, b_a, MC, VR_s, VR_f, S_0, I_a, TFN_a, TISO_an, b_s, I_s, TFN_s, TISO_sn, T_pcr, T_rap, gamma)
     dTFN_a <- TFN_a_dot(T_pcr, FNpcr_a, I_a, T_rap, FNrap_a, gamma, TFN_a)
     dTFN_s <- TFN_s_dot(T_pcr, FNpcr_s, I_s, T_rap, FNrap_s, gamma, TFN_s)
     dTISO_ap <- TISO_ap_dot(c_a, T_pcr, FNpcr_a, I_a, T_rap, FNrap_a, gamma, TISO_ap)
@@ -334,51 +336,40 @@ run_simulation <- function(state, testing, no_testing, semester) {
 }
 ```
 
-Now that the functions for solving the system have been defined, we run the simulation against all different testing scenarios, beginning with the baseline. The variables `baseline`, `PCR_100`, `PCR_50`, `PCR_33`, `RAP_100`, `RAP_50`, and `RAP_33` hold all state values for each day where `PCR` represents PCR testing and `RAP` represents Rapid Antigen Testing.
-
-The scenarios for the simuations are as follows:
-
-* Baseline: No testing
-* $PCR_{100}$: PCR tests available to 100% of eligible student body per week
-* $RA_{100}$: Rapid antigen tests available to 100% of the eligible student body per week
-* $PCR_{50}$: PCR tests available to 50% of the eligible student body per week
-* $RA_{50}$: Rapid antigen tests available to 50% of the eligible student body per week
-* $PCR_{33}$: PCR tests available to 33% of the eligible student body per week
-* $RA_{33}$: Rapid antigen tests available to 33% of the eligible student body per week
 
 ```{r}
-# Baseline
-testing <- c(b_a = b_a, b_s = b_s, p0 = p0, c_a = c_a, c_s = c_s, T_pcr = 0, T_rap = 0, gamma = gamma, FNpcr_a = FNpcr_a, FNpcr_s = FNpcr_s, FNrap_a = FNrap_a, FNrap_s = FNrap_s)
-no_testing <- c(b_a = b_a, b_s = b_s, p0 = p0, c_a = c_a, c_s = c_s, T_pcr = 0, T_rap = 0, gamma = gamma, FNpcr_a = FNpcr_a, FNpcr_s = FNpcr_s, FNrap_a = FNrap_a, FNrap_s = FNrap_s)
-baseline <- run_simulation(initial_state, testing, no_testing, semester)
+# Input county and run simulation
+# Kyle may be working on this 
 
-# PCR test available to 100% of population
-testing <- c(b_a = b_a, b_s = b_s, p0 = p0, c_a = c_a, c_s = c_s, T_pcr = 1, T_rap = 0, gamma = gamma, FNpcr_a = FNpcr_a, FNpcr_s = FNpcr_s, FNrap_a = FNrap_a, FNrap_s = FNrap_s)
-no_testing <- c(b_a = b_a, b_s = b_s, p0 = p0, c_a = c_a, c_s = c_s, T_pcr = 0, T_rap = 0, gamma = gamma, FNpcr_a = FNpcr_a, FNpcr_s = FNpcr_s, FNrap_a = FNrap_a, FNrap_s = FNrap_s)
-PCR_100 <- run_simulation(initial_state, testing, no_testing, semester)
-
-# PCR test available to 50% of population
-testing <- c(b_a = b_a, b_s = b_s, p0 = p0, c_a = c_a, c_s = c_s, T_pcr = 0.5, T_rap = 0, gamma = gamma, FNpcr_a = FNpcr_a, FNpcr_s = FNpcr_s, FNrap_a = FNrap_a, FNrap_s = FNrap_s)
-no_testing <- c(b_a = b_a, b_s = b_s, p0 = p0, c_a = c_a, c_s = c_s, T_pcr = 0, T_rap = 0, gamma = gamma, FNpcr_a = FNpcr_a, FNpcr_s = FNpcr_s, FNrap_a = FNrap_a, FNrap_s = FNrap_s)
-PCR_50 <- run_simulation(initial_state, testing, no_testing, semester)
-
-# PCR test available to 33% of population
-testing <- c(b_a = b_a, b_s = b_s, p0 = p0, c_a = c_a, c_s = c_s, T_pcr = 0.33, T_rap = 0, gamma = gamma, FNpcr_a = FNpcr_a, FNpcr_s = FNpcr_s, FNrap_a = FNrap_a, FNrap_s = FNrap_s)
-no_testing <- c(b_a = b_a, b_s = b_s, p0 = p0, c_a = c_a, c_s = c_s, T_pcr = 0, T_rap = 0, gamma = gamma, FNpcr_a = FNpcr_a, FNpcr_s = FNpcr_s, FNrap_a = FNrap_a, FNrap_s = FNrap_s)
-PCR_33 <- run_simulation(initial_state, testing, no_testing, semester)
-
-# Rapid test available to 100% of population
-testing <- c(b_a = b_a, b_s = b_s, p0 = p0, c_a = c_a, c_s = c_s, T_pcr = 0, T_rap = 1, gamma = gamma, FNpcr_a = FNpcr_a, FNpcr_s = FNpcr_s, FNrap_a = FNrap_a, FNrap_s = FNrap_s)
-no_testing <- c(b_a = b_a, b_s = b_s, p0 = p0, c_a = c_a, c_s = c_s, T_pcr = 0, T_rap = 0, gamma = gamma, FNpcr_a = FNpcr_a, FNpcr_s = FNpcr_s, FNrap_a = FNrap_a, FNrap_s = FNrap_s)
-RAP_100 <- run_simulation(initial_state, testing, no_testing, semester)
-
-# Rapid test available to 50% of population
-testing <- c(b_a = b_a, b_s = b_s, p0 = p0, c_a = c_a, c_s = c_s, T_pcr = 0, T_rap = 0.5, gamma = gamma, FNpcr_a = FNpcr_a, FNpcr_s = FNpcr_s, FNrap_a = FNrap_a, FNrap_s = FNrap_s)
-no_testing <- c(b_a = b_a, b_s = b_s, p0 = p0, c_a = c_a, c_s = c_s, T_pcr = 0, T_rap = 0, gamma = gamma, FNpcr_a = FNpcr_a, FNpcr_s = FNpcr_s, FNrap_a = FNrap_a, FNrap_s = FNrap_s)
-RAP_50 <- run_simulation(initial_state, testing, no_testing, semester)
-
-# Rapid test available to 33% of population
-testing <- c(b_a = b_a, b_s = b_s, p0 = p0, c_a = c_a, c_s = c_s, T_pcr = 0, T_rap = 0.33, gamma = gamma, FNpcr_a = FNpcr_a, FNpcr_s = FNpcr_s, FNrap_a = FNrap_a, FNrap_s = FNrap_s)
-no_testing <- c(b_a = b_a, b_s = b_s, p0 = p0, c_a = c_a, c_s = c_s, T_pcr = 0, T_rap = 0, gamma = gamma, FNpcr_a = FNpcr_a, FNpcr_s = FNpcr_s, FNrap_a = FNrap_a, FNrap_s = FNrap_s)
-RAP_33 <- run_simulation(initial_state, testing, no_testing, semester)
 ```
+
+```{r}
+# Helper code to generate scenarios
+
+# Rapid Testing: 0, 0.25, 0.5, 0.75, 1
+# Student Vaccination: 0, 0.25, 0.5, 0.75, 1
+# Faculty Vaccination: 0, 0.25, 0.5, 0.75, 1
+# Masking Compliance (Translated to Masking Efficacy): 0, 0.25, 0.5, 0.75, 1
+
+rapid_testing <- seq(0, 1, by=0.25)
+student_vaccination <- seq(0, 1, by=0.25)
+faculty_vaccination <- seq(0, 1, by=0.25)
+masking_compliance <- seq(0, 1, by=0.25)
+
+i = 1
+
+for (s in student_vaccination) {
+  for (f in faculty_vaccination) {
+    for (m in masking_compliance) {
+      for (r in rapid_testing) {
+        result <- sprintf("testing%d <- c(b_a = b_a, b_s = b_s, p0 = p0, c_a = c_a, c_s = c_s, MC = %f, VR_s = %f, VR_f = %f, T_pcr = 0, T_rap = %f, gamma = gamma, FNpcr_a = FNpcr_a, FNpcr_s = FNpcr_s, FNrap_a = FNrap_a, FNrap_s = FNrap_s) \n no_testing%d <- c(b_a = b_a, b_s = b_s, p0 = p0, c_a = c_a, c_s = c_s, MC = %f, VR_s = %f, VR_f = %f, T_pcr = 0, T_rap = 0, gamma = gamma, FNpcr_a = FNpcr_a, FNpcr_s = FNpcr_s, FNrap_a = FNrap_a, FNrap_s = FNrap_s) \n scenario%d <- run_simulation(initial_state, testing%d, no_testing%d, semester) \n", i, m, s, f, r, i, m, s, f, i, i, i)
+        cat(result)
+        i = i + 1
+      }
+    }
+  }
+}
+
+```
+
+
