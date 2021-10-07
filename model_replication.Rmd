@@ -176,6 +176,8 @@ county_data$R_u <- initial_recovered_unknown(county_data)
 
 county_data$total <- county_data$S_0 + county_data$I_s + county_data$I_a + county_data$R_u
 
+county_data <- county_data[-c(108, 146),]
+
 county_data
 
 # We should exclude Non-GA Resident and Unknown
@@ -233,17 +235,17 @@ The following code defines the differential equations for the change in the stat
 
 ```{r}
 S_dot <- function(b_a, MC, VR_s, VR_f, S_0, I_a, TFN_a, TISO_an, b_s, I_s, TFN_s, TISO_sn) {
-  result <- (-b_a * (1 - MC) * (1 - (Vr_s + VR_f)) * S_0 * (I_a + TFN_a + TISO_an)) - (b_s * (1 - MC) * (1 - VR) * S_0 * (I_s + TFN_s + TISO_sn))
+  result <- (-b_a * (1 - MC) * (1 - (VR_s + VR_f)) * S_0 * (I_a + TFN_a + TISO_an)) - (b_s * (1 - MC) * (1 - (VR_s + VR_f)) * S_0 * (I_s + TFN_s + TISO_sn))
   return(result)
 }
 
 I_a_dot <- function(p0, b_a, MC, VR_s, VR_f, S_0, I_a, TFN_a, TISO_an, b_s, I_s, TFN_s, TISO_sn, T_pcr, T_rap, gamma) {
-  result <- (1 - p0) * ((b_a * (1 - MC) * (1 - (Vr_s + VR_f)) * S_0 * (I_a + TFN_a + TISO_an)) + (b_s * (1 - MC) * (1 - VR) * S_0 * (I_s + TFN_s + TISO_sn))) - (T_pcr * I_a) - (T_rap * I_a) - (gamma * I_a)
+  result <- (1 - p0) * ((b_a * (1 - MC) * (1 - (VR_s + VR_f)) * S_0 * (I_a + TFN_a + TISO_an)) + (b_s * (1 - MC) * (1 - (VR_s + VR_f)) * S_0 * (I_s + TFN_s + TISO_sn))) - (T_pcr * I_a) - (T_rap * I_a) - (gamma * I_a)
   return(result)
 }
 
 I_s_dot <- function(p0, b_a, MC, VR_s, VR_f, S_0, I_a, TFN_a, TISO_an, b_s, I_s, TFN_s, TISO_sn, T_pcr, T_rap, gamma) {
-  result <- p0 * ((b_a * (1 - MC) * (1 - (Vr_s + VR_f)) * S_0 * (I_a + TFN_a + TISO_an)) + (b_s * (1 - MC) * (1 - VR) * S_0 * (I_s + TFN_s + TISO_sn))) - (T_pcr * I_s) - (T_rap * I_s) - (gamma * I_s)
+  result <- p0 * ((b_a * (1 - MC) * (1 - (VR_s + VR_f)) * S_0 * (I_a + TFN_a + TISO_an)) + (b_s * (1 - MC) * (1 - (VR_s + VR_f)) * S_0 * (I_s + TFN_s + TISO_sn))) - (T_pcr * I_s) - (T_rap * I_s) - (gamma * I_s)
   return(result)
 }
 
@@ -340,16 +342,122 @@ run_simulation <- function(state, testing, no_testing, semester) {
 
 
 ```{r}
-# Input county and run simulation, not sure if this equation is even helpful, but at some point we will need to loop through all counties and store their initial states in this format?
+# Validation
 
-get_county_initial_state <- function(county_data, county) {
-  single_county <- county_data[which(county_data$county_name == county), ]
-  initial_state <- c(S_0 = single_county$S_0, I_a = single_county$I_a, I_s = single_county$I_s, TFN_a = TFN_a, TFN_s = TFN_s, TISO_an = TISO_an, TISO_sn = TISO_sn, TISO_ap = TISO_ap, TISO_sp = TISO_sp, RC = R_c, RU = single_county$R_u)
+b_a = 0.1       # transmission rate due to contact of asymptomatic patient
+b_s = 0.2       # transmission rate due to contact of symptomatic patient
+gamma = 0.1     # rate of recovery for an infected individual
+p0 = 0.5        # proportion of infections that are symptomatic
+c_a = 0.7       # isolation compliance asymptomatic infected + tested patients
+c_s = 0.9       # isolation compliance symptomatic infected + tested patients
+FNpcr_a = 0.15  # false negative rate of a PCR test for asymptomatic patients
+FNpcr_s = 0.15  # false negative rate of a PCR test for symptomatic patients
+FNrap_a = 0.30  # false negative rate of a rapid test for asymptomatic patients
+FNrap_s = 0.30  # false negative rate of a rapid test for symptomatic patients
+FPpcr_a = 0.05  # false positive rate of a PCR test for asymptomatic patients
+FPpcr_s = 0.05  # false positive rate of a PCR test for symptomatic patients
+FPrap_a = 0.10  # false positive rate of a rapid test for asymptomatic patients
+FPrap_s = 0.10  # false positive rate of a rapid test for symptomatic patients
+
+# Initial values
+#S_0 = initial_susceptibility(county_data)     # initial susceptibility of the student body
+#I_s = initial_infected_symptomatic(county_data)    # initial infected and symptomatic
+#I_a = initial_infected_asymptomatic(county_data)    # initial infected and asymptomatic
+#R_u = initial_recovered_unknown(county_data)      # initial recovered unknown
+R_c = 0.0       # initial recovered confirmed
+
+# Initial test values (no tests administered)
+TFN_a = 0       # initial population with a false negative and asymptomatic
+TFN_s = 0       # initial population with a false negative and symptomatic 
+TISO_an = 0     # initial population tested with infection, not in isolation, asymptomatic 
+TISO_ap = 0     # initial population tested with infection, in isolation, asymptomatic 
+TISO_sn = 0     # initial population tested with infection, not in isolation, symptomatic
+TISO_sp = 0     # initial population tested with infection, in isolation, symptomatic
+
+
+n = 15000       # student population
+
+# Days in simulation
+days <- 14
+
+# Sequence for semester
+semester <- seq(1, days, by=1)
+
+testing <- c(b_a = b_a, b_s = b_s, p0 = p0, c_a = c_a, c_s = c_s, MC = 0, VR_s = 0, VR_f = 0, T_pcr = 0, T_rap = 0, gamma = gamma, FNpcr_a = FNpcr_a, FNpcr_s = FNpcr_s, FNrap_a = FNrap_a, FNrap_s = FNrap_s)
+
+no_testing <- c(b_a = b_a, b_s = b_s, p0 = p0, c_a = c_a, c_s = c_s, MC = 0, VR_s = 0, VR_f = 0, T_pcr = 0, T_rap = 0, gamma = gamma, FNpcr_a = FNpcr_a, FNpcr_s = FNpcr_s, FNrap_a = FNrap_a, FNrap_s = FNrap_s)
+
+# Define generic differential update function
+differentials <- function(t, state, parameters) {
+  with(as.list(c(state, parameters)), {
+    dS <- S_dot(b_a, MC, VR_s, VR_f, S_0, I_a, TFN_a, TISO_an, b_s, I_s, TFN_s, TISO_sn)
+    dI_a <- I_a_dot(p0, b_a, MC, VR_s, VR_f, S_0, I_a, TFN_a, TISO_an, b_s, I_s, TFN_s, TISO_sn, T_pcr, T_rap, gamma)
+    dI_s <- I_s_dot(p0, b_a, MC, VR_s, VR_f, S_0, I_a, TFN_a, TISO_an, b_s, I_s, TFN_s, TISO_sn, T_pcr, T_rap, gamma)
+    dTFN_a <- TFN_a_dot(T_pcr, FNpcr_a, I_a, T_rap, FNrap_a, gamma, TFN_a)
+    dTFN_s <- TFN_s_dot(T_pcr, FNpcr_s, I_s, T_rap, FNrap_s, gamma, TFN_s)
+    dTISO_ap <- TISO_ap_dot(c_a, T_pcr, FNpcr_a, I_a, T_rap, FNrap_a, gamma, TISO_ap)
+    dTISO_sp <- TISO_sp_dot(c_s, T_pcr, FNpcr_s, I_s, T_rap, FNrap_s, gamma, TISO_sp)
+    dTISO_an <- TISO_an_dot(c_a, T_pcr, FNpcr_a, I_a, T_rap, FNrap_a, gamma, TISO_an)
+    dTISO_sn <- TISO_sn_dot(c_s, T_pcr, FNpcr_s, I_s, T_rap, FNrap_s, gamma, TISO_sn)
+    dRC <- RC_dot(gamma, TISO_ap, TISO_sp, TISO_an, TISO_sn)
+    dRU <- RU_dot(gamma, I_a, I_s, TFN_a, TFN_s)
+    return(list(c(dS, dI_a, dI_s, dTFN_a, dTFN_s, dTISO_an, dTISO_sn, dTISO_ap, dTISO_sp, dRC, dRU)))
+  })
 }
 
-test <- get_county_initial_state(county_data, "Bacon")
-test
+run_simulation <- function(state, testing, no_testing, semester) {
+  states <- list()
+  for (t in semester) {
+    day <- seq(t - 1, t, by=1)
+    if (t %% 7 == 0) {
+      parameters <- testing
+    } else {
+      parameters <- no_testing
+    }
+    state <- ode(y = state, times = day, func = differentials, parms = parameters)[2,c(2:12)]
+    states[[length(states) + 1]] <- state
+  }
+  return(states)
+}
+
+generate_predicted_county_cases <- function() {
+  predicted_cases <- c()
+  for (i in 1:nrow(county_data)) {
+    row <- county_data[i,]
+    initial_state <- c(S_0 = row$S_0, I_a = row$I_a, I_s = row$I_s, TFN_a = TFN_a, TFN_s = TFN_s, TISO_an = TISO_an, TISO_sn = TISO_sn, TISO_ap = TISO_ap, TISO_sp = TISO_sp, RC = R_c, RU = row$R_u)
+    baseline <- run_simulation(initial_state, testing, no_testing, semester)
+    two_week_state <- baseline[[14]]
+    final_susceptibility <- two_week_state["S_0"]
+    infection_attack_rate <- row$S_0 - final_susceptibility
+    number_of_cases <- ceiling(infection_attack_rate * row$population)
+    predicted_cases <- c(predicted_cases, number_of_cases)
+  }
+  return(predicted_cases)
+}
+
+populate_predicted_county_cases<- function(list1, list2) {
+  predicted_county_cases <- hash()
+  for (i in 1:length(list1)) {
+    county_name <- list1[[i]]
+    predicted_cases <- list2[[i]]
+    if (has.key(county_name, predicted_county_cases)) {
+      next
+    }
+    predicted_county_cases[county_name] <- predicted_cases
+  }
+  return(predicted_county_cases)
+}
+
+library("xlsx")
+
+validation_results_county_10_05 <- populate_predicted_county_cases(counties, generate_predicted_county_cases())
+validation_results_county_10_05
+
+#write.xlsx(keys(validation_results_county_10_05), '10_05_validation.xlsx', sheetName = "Sheet1")
+#write.xlsx(values(validation_results_county_10_05), '10_05_validation.xlsx', sheetName = "Sheet2")
+
 ```
+
 
 ```{r}
 # Helper code to generate scenarios
@@ -379,5 +487,7 @@ for (s in student_vaccination) {
 }
 
 ```
+
+
 
 
