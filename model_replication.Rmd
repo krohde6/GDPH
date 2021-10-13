@@ -86,12 +86,13 @@ Below are the variable definitions
 |  $T_{rap_a}$, $T_{rap_s}$  |                    Percentage of students that have access to rapid antigen tests                   | Defined in each scenario
 
 ```{r}
-library("readxl")
+# Download data from GDPH website
+temp_file <- tempfile()
+download.file("https://ga-covid19.ondemand.sas.com/docs/ga_covid_data.zip", temp_file)
+data <- read.csv(unz(temp_file, "county_cases.csv"))
+unlink(temp_file)
 
-# load dataset & remove unnecessary columns
-data <- read.csv("county_cases.csv", header = TRUE)
-attach(data)
-
+# Remove unused columns
 county_data <- subset(data, select = -c(county_id, 
                                  State.FIPS.code,
                                  County.FIPS.code,
@@ -102,48 +103,55 @@ county_data <- subset(data, select = -c(county_id,
                                  X14.day.case.rate,
                                  antigen_cases,
                                  probable_deaths))
-head(county_data)
+attach(county_data)
 ```
 
 ```{r}
 library(hash)
 
-counties <- c(
-              "Appling", "Atkinson", "Bacon", "Baker", "Baldwin", "Banks", "Barrow", "Bartow",
-              "Ben Hill", "Berrien", "Bibb", "Bleckley", "Brantley", "Brooks", "Bryan", "Bulloch",
-              "Burke", "Butts", "Calhoun", "Camden", "Candler", "Carroll", "Catoosa", "Charlton",
-              "Chatham", "Chattahoochee", "Chattooga", "Cherokee", "Clarke", "Clay", "Clayton",
-              "Clinch", "Cobb", "Coffee", "Colquitt", "Columbia", "Cook", "Coweta", "Crawford", "Crisp",
-              "Dade", "Dawson", "DeKalb", "Decatur", "Dodge", "Dooly", "Dougherty", "Douglas", "Early",
-              "Echols", "Effingham", "Elbert", "Emanuel", "Evans", "Fannin", "Fayette", "Floyd",
-              "Forsyth", "Franklin", "Fulton", "Gilmer", "Glascock", "Glynn", "Gordon", "Grady",
-              "Greene", "Gwinnett", "Habersham", "Hall", "Hancock", "Haralson", "Harris", "Hart",
-              "Heard", "Henry", "Houston", "Irwin", "Jackson", "Jasper", "Jeff Davis", "Jefferson",
-              "Jenkins", "Johnson", "Jones", "Lamar", "Lanier", "Laurens", "Lee", "Liberty", "Lincoln",
-              "Long", "Lowndes", "Lumpkin", "Macon", "Madison", "Marion", "McDuffie", "McIntosh", 
-              "Meriwether", "Miller", "Mitchell", "Monroe", "Montgomery", "Morgan", "Murray", 
-              "Muscogee", "Newton", "Oconee", "Oglethorpe", "Paulding", "Peach", "Pickens", "Pierce", 
-              "Pike", "Polk", "Pulaski", "Putnam", "Quitman", "Rabun", "Randolph", "Richmond", 
-              "Rockdale", "Schley", "Screven", "Seminole", "Spalding", "Stephens", "Stewart", "Sumter",
-              "Talbot", "Taliaferro", "Tattnall", "Taylor", "Telfair", "Terrell", "Thomas", "Tift", 
-              "Toombs", "Towns", "Treutlen", "Troup", "Turner", "Twiggs", "Union", "Upson", "Walker",
-              "Walton", "Ware", "Warren", "Washington", "Wayne", "Webster", "Wheeler", "White", 
-              "Whitfield", "Wilcox", "Wilkes", "Wilkinson", "Worth"
-             )
+# Hard coded all counties in Georgia
+counties <- hash(
+                  keys=c(
+                   "Appling", "Atkinson", "Bacon", "Baker", "Baldwin", "Banks", "Barrow", "Bartow",
+                   "Ben Hill", "Berrien", "Bibb", "Bleckley", "Brantley", "Brooks", "Bryan", "Bulloch",
+                   "Burke", "Butts", "Calhoun", "Camden", "Candler", "Carroll", "Catoosa", "Charlton",
+                   "Chatham", "Chattahoochee", "Chattooga", "Cherokee", "Clarke", "Clay", "Clayton",
+                   "Clinch", "Cobb", "Coffee", "Colquitt", "Columbia", "Cook", "Coweta", "Crawford", "Crisp",
+                   "Dade", "Dawson", "DeKalb", "Decatur", "Dodge", "Dooly", "Dougherty", "Douglas", "Early",
+                   "Echols", "Effingham", "Elbert", "Emanuel", "Evans", "Fannin", "Fayette", "Floyd",
+                   "Forsyth", "Franklin", "Fulton", "Gilmer", "Glascock", "Glynn", "Gordon", "Grady",
+                   "Greene", "Gwinnett", "Habersham", "Hall", "Hancock", "Haralson", "Harris", "Hart",
+                   "Heard", "Henry", "Houston", "Irwin", "Jackson", "Jasper", "Jeff Davis", "Jefferson",
+                   "Jenkins", "Johnson", "Jones", "Lamar", "Lanier", "Laurens", "Lee", "Liberty", "Lincoln",
+                   "Long", "Lowndes", "Lumpkin", "Macon", "Madison", "Marion", "McDuffie", "McIntosh", 
+                   "Meriwether", "Miller", "Mitchell", "Monroe", "Montgomery", "Morgan", "Murray", 
+                   "Muscogee", "Newton", "Oconee", "Oglethorpe", "Paulding", "Peach", "Pickens", "Pierce", 
+                   "Pike", "Polk", "Pulaski", "Putnam", "Quitman", "Rabun", "Randolph", "Richmond", 
+                   "Rockdale", "Schley", "Screven", "Seminole", "Spalding", "Stephens", "Stewart", "Sumter",
+                   "Talbot", "Taliaferro", "Tattnall", "Taylor", "Telfair", "Terrell", "Thomas", "Tift", 
+                   "Toombs", "Towns", "Treutlen", "Troup", "Turner", "Twiggs", "Union", "Upson", "Walker",
+                   "Walton", "Ware", "Warren", "Washington", "Wayne", "Webster", "Wheeler", "White", 
+                   "Whitfield", "Wilcox", "Wilkes", "Wilkinson", "Worth"
+                  ),
+                  values=1:159
+                )
 
-generate_default_school <- function() {
+# here is an example of how to get row of certain county data 
+gwinnett_data <- county_data[counties$Gwinnett,]
+
+# Use this function to get county hash with user inputted data
+generate_default_school <- function(county, days, masking, student_pop, faculty_pop, student_vax, faculty_vax, testing) {
   school <- hash()
-  school["county"]           <- ""
-  school["days"]             <- 107
-  school["masking"]          <- 0
-  school["student_pop"]      <- 0
-  school["faculty_pop"]      <- 0
-  school["student_vax"]      <- 0
-  school["faculty_vax"]      <- 0
-  school["testing"]          <- 0 # only considering rapid testing
+  school["county"]           <- county
+  school["days"]             <- days
+  school["masking"]          <- masking
+  school["student_pop"]      <- student_pop
+  school["faculty_pop"]      <- faculty_pop
+  school["student_vax"]      <- student_vax
+  school["faculty_vax"]      <- faculty_vax
+  school["testing"]          <- testing
   return(school)
 }
-
 ```
 
 The following calculates the initial states for each county using publicly available, county-level data from the DPH website and adds them to a data frame with the following column-headers for each county: County Name (county_name), Total Number of Cases per County (cases), Total Population per County (population), Number of New Cases in the Past 14 Days per County (X14.day.cases), Initial Susceptibility (S_0), Initial Infected Symptomatic (I_s), Initial Infected Asymptomatic (I_a), Initial Recovered Unknown (R_u), and the Total Sum of Initial States (total).
@@ -169,20 +177,11 @@ initial_recovered_unknown <- function(county_data) {
   return(result)
 }
 
+# Add columns representing initial states
 county_data$S_0 <- initial_susceptibility(county_data)
 county_data$I_s <- initial_infected_symptomatic(county_data)
 county_data$I_a <- initial_infected_asymptomatic(county_data)
 county_data$R_u <- initial_recovered_unknown(county_data)
-
-county_data$total <- county_data$S_0 + county_data$I_s + county_data$I_a + county_data$R_u
-
-county_data <- county_data[-c(108, 146),]
-
-county_data
-
-# We should exclude Non-GA Resident and Unknown
-
-
 ```
 
 Below is the R code for defining the initial values and constants of the system.
@@ -448,13 +447,13 @@ populate_predicted_county_cases<- function(list1, list2) {
   return(predicted_county_cases)
 }
 
-library("xlsx")
+library("writexl")
 
 validation_results_county_10_05 <- populate_predicted_county_cases(counties, generate_predicted_county_cases())
 validation_results_county_10_05
 
-#write.xlsx(keys(validation_results_county_10_05), '10_05_validation.xlsx', sheetName = "Sheet1")
-#write.xlsx(values(validation_results_county_10_05), '10_05_validation.xlsx', sheetName = "Sheet2")
+write_xlsx(keys(validation_results_county_10_05), '10_05_validation.xlsx', sheetName = "Sheet1")
+write_xlsx(values(validation_results_county_10_05), '10_05_validation.xlsx', sheetName = "Sheet2")
 
 ```
 
