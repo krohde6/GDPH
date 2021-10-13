@@ -136,9 +136,6 @@ counties <- hash(
                   values=1:159
                 )
 
-# here is an example of how to get row of certain county data 
-gwinnett_data <- county_data[counties$Gwinnett,]
-
 # Use this function to get county hash with user inputted data
 generate_default_school <- function(county, days, masking, student_pop, faculty_pop, student_vax, faculty_vax, testing) {
   school <- hash()
@@ -182,6 +179,10 @@ county_data$S_0 <- initial_susceptibility(county_data)
 county_data$I_s <- initial_infected_symptomatic(county_data)
 county_data$I_a <- initial_infected_asymptomatic(county_data)
 county_data$R_u <- initial_recovered_unknown(county_data)
+
+# here is an example of how to get row of certain county data 
+gwinnett_data <- county_data[counties$"Gwinnett",]
+print(gwinnett_data)
 ```
 
 Below is the R code for defining the initial values and constants of the system.
