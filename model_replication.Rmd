@@ -450,7 +450,7 @@ populate_predicted_county_cases<- function(list1, list2) {
 
 library("writexl")
 
-validation_results_county_10_05 <- populate_predicted_county_cases(counties, generate_predicted_county_cases())
+validation_results_county_10_05 <- populate_predicted_county_cases(keys(counties), generate_predicted_county_cases())
 validation_results_county_10_05
 
 write_xlsx(keys(validation_results_county_10_05), '10_05_validation.xlsx', sheetName = "Sheet1")
