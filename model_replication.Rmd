@@ -11,7 +11,6 @@ output:
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
-
 The purpose of this document is to replicate "The Impact of Covid-19 Testing on College Campuses" research done by Zhuoting Yu, Akane B. Fujimoto, Pinar Keskinocak, and Julie Swann.
 
 The model created considers various states to describe a student's status as it relates to Covid-19 infection. The states are as follows:
@@ -193,6 +192,20 @@ generate_school <- function(county, days, masking, student_pop, faculty_pop, stu
 
 
 ```{r}
+# COLIN: here is where you should get all values from the user inputted data and call generate_school(). it should look something like this
+# just replace the hard coded values with the values provided by the user
+county <- "Fulton"
+days <- 14
+masking <- 0.0
+student_pop <- 500
+faculty_pop <- 50
+student_vax <- 0
+faculty_vax <- 0
+testing <- 0
+pcr <- TRUE
+school <- generate_school(toString(county), days, masking, student_pop, faculty_pop, student_vax, faculty_vax, testing, pcr)
+single_county_data <- county_data[values(counties, key=c(county)),]
+
 # Functions defining initial states for all counties
 
 initial_susceptibility <- function(county_data) {
@@ -215,8 +228,8 @@ initial_recovered_unknown <- function(county_data) {
   return(result)
 }
 
-students_vaccinated <- student_population * VR_s
-faculty_vaccinated <- faculty_population * VR_f
+students_vaccinated <- student_pop * VR_s
+faculty_vaccinated <- faculty_pop * VR_f
 percent_school_vaccinated <- (students_vaccinated + faculty_vaccinated) / total_school_population
 
 # Scale county_data for all counties to include initial states for simulation
@@ -229,20 +242,6 @@ county_data$I_av <- 0.5*initial_infected_asymptomatic(county_data)
 county_data$I_an <- 0.5*initial_infected_asymptomatic(county_data)
 county_data$R_u <- initial_recovered_unknown(county_data)
 county_data$total <- county_data$S_0_v + county_data$S_0_n + county_data$I_sv + county_data$I_av + county_data$I_sn + county_data$I_an + county_data$R_u
-
-# COLIN: here is where you should get all values from the user inputted data and call generate_school(). it should look something like this
-# just replace the hard coded values with the values provided by the user
-county <- "Fulton"
-days <- 14
-masking <- 0.0
-student_pop <- 500
-faculty_pop <- 50
-student_vax <- 0
-faculty_vax <- 0
-testing <- 0
-pcr <- TRUE
-school <- generate_school(toString(county), days, masking, student_pop, faculty_pop, student_vax, faculty_vax, testing, pcr)
-single_county_data <- county_data[values(counties, key=c(county)),]
 ```
 
 ```{r}
