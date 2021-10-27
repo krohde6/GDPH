@@ -199,11 +199,11 @@ days <- 14
 masking <- 0.0
 student_pop <- 500
 faculty_pop <- 50
-student_vax <- 0
-faculty_vax <- 0
+VR_s <- 0
+VR_f <- 0
 testing <- 0
 pcr <- TRUE
-school <- generate_school(toString(county), days, masking, student_pop, faculty_pop, student_vax, faculty_vax, testing, pcr)
+school <- generate_school(toString(county), days, masking, student_pop, faculty_pop, VR_s, VR_f, testing, pcr)
 single_county_data <- county_data[values(counties, key=c(county)),]
 
 # Functions defining initial states for all counties
