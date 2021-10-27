@@ -230,6 +230,7 @@ initial_recovered_unknown <- function(county_data) {
 
 students_vaccinated <- student_pop * VR_s
 faculty_vaccinated <- faculty_pop * VR_f
+total_school_population <- student_pop + faculty_pop
 percent_school_vaccinated <- (students_vaccinated + faculty_vaccinated) / total_school_population
 
 # Scale county_data for all counties to include initial states for simulation
