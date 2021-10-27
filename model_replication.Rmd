@@ -192,20 +192,6 @@ generate_school <- function(county, days, masking, student_pop, faculty_pop, stu
 
 
 ```{r}
-# COLIN: here is where you should get all values from the user inputted data and call generate_school(). it should look something like this
-# just replace the hard coded values with the values provided by the user
-county <- "Fulton"
-days <- 14
-masking <- 0.0
-student_pop <- 500
-faculty_pop <- 50
-VR_s <- 0
-VR_f <- 0
-testing <- 0
-pcr <- TRUE
-school <- generate_school(toString(county), days, masking, student_pop, faculty_pop, VR_s, VR_f, testing, pcr)
-single_county_data <- county_data[values(counties, key=c(county)),]
-
 # Functions defining initial states for all counties
 
 initial_susceptibility <- function(county_data) {
@@ -228,6 +214,18 @@ initial_recovered_unknown <- function(county_data) {
   return(result)
 }
 
+# COLIN: here is where you should get all values from the user inputted data and call generate_school(). it should look something like this
+# just replace the hard coded values with the values provided by the user
+county <- "Fulton"
+days <- 14
+masking <- 0.0
+testing <- 0
+pcr <- TRUE
+student_pop <- 500
+faculty_pop <- 50
+VR_s <- 0
+VR_f <- 0
+
 students_vaccinated <- student_pop * VR_s
 faculty_vaccinated <- faculty_pop * VR_f
 total_school_population <- student_pop + faculty_pop
@@ -243,6 +241,9 @@ county_data$I_av <- 0.5*initial_infected_asymptomatic(county_data)
 county_data$I_an <- 0.5*initial_infected_asymptomatic(county_data)
 county_data$R_u <- initial_recovered_unknown(county_data)
 county_data$total <- county_data$S_0_v + county_data$S_0_n + county_data$I_sv + county_data$I_av + county_data$I_sn + county_data$I_an + county_data$R_u
+
+school <- generate_school(toString(county), days, masking, student_pop, faculty_pop, VR_s, VR_f, testing, pcr)
+single_county_data <- county_data[values(counties, key=c(county)),]
 ```
 
 ```{r}
@@ -251,18 +252,18 @@ b_1 = 0.068       # transmission rate due to contact between susceptible vaccina
 b_2 = 0.136       # transmission rate due to contact between susceptible vaccinated and infected symptomatic patient
 b_3 = 0.2         # transmission rate due to contact between susceptible not vaccinated and infected asymptomatic patient
 b_4 = 0.4         # transmission rate due to contact between susceptible not vaccinated and infected symptomatic patient
-gamma = 0.1       # rate of recovery for an infected individual
-p0 = 0.5          # proportion of infections that are symptomatic
-c_a = 1           # isolation compliance asymptomatic infected + tested patients
-c_s = 1           # isolation compliance symptomatic infected + tested patients
-FNpcr_a = 0.11    # false negative rate of a PCR test for asymptomatic patients
-FNpcr_s = 0.11    # false negative rate of a PCR test for symptomatic patients
-FNrap_a = 0.30    # false negative rate of a rapid test for asymptomatic patients
-FNrap_s = 0.30    # false negative rate of a rapid test for symptomatic patients
-FPpcr_a = 0.05    # false positive rate of a PCR test for asymptomatic patients
-FPpcr_s = 0.05    # false positive rate of a PCR test for symptomatic patients
-FPrap_a = 0.10    # false positive rate of a rapid test for asymptomatic patients
-FPrap_s = 0.10    # false positive rate of a rapid test for symptomatic patients
+gamma = 0.1        # rate of recovery for an infected individual
+p0 = 0.7           # proportion of infections that are symptomatic
+c_a = 1            # isolation compliance asymptomatic infected + tested patients
+c_s = 1            # isolation compliance symptomatic infected + tested patients
+FNpcr_a = 0.149    # false negative rate of a PCR test for asymptomatic patients
+FNpcr_s = 0.149    # false negative rate of a PCR test for symptomatic patients
+FNrap_a = 0.37     # false negative rate of a rapid test for asymptomatic patients
+FNrap_s = 0.37     # false negative rate of a rapid test for symptomatic patients
+FPpcr_a = 0.05     # false positive rate of a PCR test for asymptomatic patients
+FPpcr_s = 0.05     # false positive rate of a PCR test for symptomatic patients
+FPrap_a = 0.10     # false positive rate of a rapid test for asymptomatic patients
+FPrap_s = 0.10     # false positive rate of a rapid test for symptomatic patients
 
 # Initial susceptibility values
 S_0_v = as.numeric(single_county_data[6])    # initial susceptibility of the vaccinated school population
