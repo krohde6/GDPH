@@ -128,6 +128,7 @@ temp_file <- tempfile()
 download.file("https://ga-covid19.ondemand.sas.com/docs/ga_covid_data.zip", temp_file)
 data <- read.csv(unz(temp_file, "county_cases.csv"))
 unlink(temp_file)
+
 # Remove unused columns
 county_data <- subset(data, select = -c(county_id, 
                                  State.FIPS.code,
@@ -173,9 +174,9 @@ counties <- hash(
                   values=1:159
                 )
 
-# COLIN: this function can be called with all of the user inputted data AS STRINGS and returns a dictionary for that school
-# Use this function to get county hash with user inputted data
-generate_default_school <- function(county, days, masking, student_pop, faculty_pop, student_vax, faculty_vax, testing) {
+# COLIN: this function can be called with all of the user inputted data and returns a dictionary for that school
+# Use this function to get county hash with user inputted data (pcr should be a boolean true if pcr selected, false otherwise)
+generate_school <- function(county, days, masking, student_pop, faculty_pop, student_vax, faculty_vax, testing, pcr) {
   school <- hash()
   school["county"]           <- county
   school["days"]             <- days
@@ -185,6 +186,7 @@ generate_default_school <- function(county, days, masking, student_pop, faculty_
   school["student_vax"]      <- student_vax
   school["faculty_vax"]      <- faculty_vax
   school["testing"]          <- testing
+  school["pcr"]              <- pcr
   return(school)
 }
 ```
@@ -192,32 +194,26 @@ generate_default_school <- function(county, days, masking, student_pop, faculty_
 
 ```{r}
 # Functions defining initial states for all counties
+
 initial_susceptibility <- function(county_data) {
   result <- (county_data$population - county_data$cases) / county_data$population
   return(result)
 }
+
 initial_infected_symptomatic <- function(county_data) {
   result <- ((county_data$X14.day.cases) / county_data$population) * 0.5
   return(result)
 }
+
 initial_infected_asymptomatic <- function(county_data) {
   result <- ((county_data$X14.day.cases) / county_data$population) * 0.5
   return(result)
 }
+
 initial_recovered_unknown <- function(county_data) {
   result <- (county_data$cases - county_data$X14.day.cases) / county_data$population
   return(result)
 }
-
-# COLIN: here is where we need an integer type variable from the user for student and faculty population (replace the definition of student_population, faculty_population)
-student_population <- as.integer(readline(prompt = "How many students are attending your school in person? "))
-faculty_population <- as.integer(readline(prompt = "How many faculty are teaching at your school in person? "))
-
-total_school_population <- student_population + faculty_population
-
-# COLIN: here is where we need a float type variable from the user for student and faculty population (replace the definition of VR_s, VR_f)
-VR_s <- as.numeric(readline(prompt = "Enter percentage of students vaccinated: "))
-VR_f <- as.numeric(readline(prompt = "Enter percentage of faculty vaccinated: "))
 
 students_vaccinated <- student_population * VR_s
 faculty_vaccinated <- faculty_population * VR_f
@@ -234,46 +230,53 @@ county_data$I_an <- 0.5*initial_infected_asymptomatic(county_data)
 county_data$R_u <- initial_recovered_unknown(county_data)
 county_data$total <- county_data$S_0_v + county_data$S_0_n + county_data$I_sv + county_data$I_av + county_data$I_sn + county_data$I_an + county_data$R_u
 
-# COLIN: here is where I would like a string type variable for which county was selected, can be stored using this convention:
-# county <- (string representation of that county)
-
-# COLIN: sorry I'm thinking out loud, alternately you can provide a list with all of the user inputs in one place here using this convention:
-# user_inputs <- c(county, days, masking, student_pop, faculty_pop, student_vax, faculty_vax, testing)
-# All variables can be strings, but it would be easier on me if numeric values were numeric types
+# COLIN: here is where you should get all values from the user inputted data and call generate_school(). it should look something like this
+# just replace the hard coded values with the values provided by the user
+county <- "Fulton"
+days <- 14
+masking <- 0.0
+student_pop <- 500
+faculty_pop <- 50
+student_vax <- 0
+faculty_vax <- 0
+testing <- 0
+pcr <- TRUE
+school <- generate_school(toString(county), days, masking, student_pop, faculty_pop, student_vax, faculty_vax, testing, pcr)
+single_county_data <- county_data[values(counties, key=c(county)),]
 ```
 
 ```{r}
 # Initial built-in parameters
-b_1 = 0.1       # transmission rate due to contact between susceptible vaccinated and infected asymptomatic patient
-b_2 = 0.2       # transmission rate due to contact between susceptible vaccinated and infected symptomatic patient
-b_3 = 0.3       # transmission rate due to contact between susceptible not vaccinated and infected asymptomatic patient
-b_4 = 0.2       # transmission rate due to contact between susceptible not vaccinated and infected symptomatic patient
-gamma = 0.1     # rate of recovery for an infected individual
-p0 = 0.5        # proportion of infections that are symptomatic
-c_a = 0.7       # isolation compliance asymptomatic infected + tested patients
-c_s = 0.9       # isolation compliance symptomatic infected + tested patients
-FNpcr_a = 0.15  # false negative rate of a PCR test for asymptomatic patients
-FNpcr_s = 0.15  # false negative rate of a PCR test for symptomatic patients
-FNrap_a = 0.30  # false negative rate of a rapid test for asymptomatic patients
-FNrap_s = 0.30  # false negative rate of a rapid test for symptomatic patients
-FPpcr_a = 0.05  # false positive rate of a PCR test for asymptomatic patients
-FPpcr_s = 0.05  # false positive rate of a PCR test for symptomatic patients
-FPrap_a = 0.10  # false positive rate of a rapid test for asymptomatic patients
-FPrap_s = 0.10  # false positive rate of a rapid test for symptomatic patients
+b_1 = 0.068       # transmission rate due to contact between susceptible vaccinated and infected asymptomatic patient
+b_2 = 0.136       # transmission rate due to contact between susceptible vaccinated and infected symptomatic patient
+b_3 = 0.2         # transmission rate due to contact between susceptible not vaccinated and infected asymptomatic patient
+b_4 = 0.4         # transmission rate due to contact between susceptible not vaccinated and infected symptomatic patient
+gamma = 0.1       # rate of recovery for an infected individual
+p0 = 0.5          # proportion of infections that are symptomatic
+c_a = 1           # isolation compliance asymptomatic infected + tested patients
+c_s = 1           # isolation compliance symptomatic infected + tested patients
+FNpcr_a = 0.11    # false negative rate of a PCR test for asymptomatic patients
+FNpcr_s = 0.11    # false negative rate of a PCR test for symptomatic patients
+FNrap_a = 0.30    # false negative rate of a rapid test for asymptomatic patients
+FNrap_s = 0.30    # false negative rate of a rapid test for symptomatic patients
+FPpcr_a = 0.05    # false positive rate of a PCR test for asymptomatic patients
+FPpcr_s = 0.05    # false positive rate of a PCR test for symptomatic patients
+FPrap_a = 0.10    # false positive rate of a rapid test for asymptomatic patients
+FPrap_s = 0.10    # false positive rate of a rapid test for symptomatic patients
 
 # Initial susceptibility values
-S_0_v = county_data$S_0_v    # initial susceptibility of the vaccinated school population
-S_0_n = county_data$S_0_n    # initial susceptibility of the not vaccinated school population
+S_0_v = as.numeric(single_county_data[6])    # initial susceptibility of the vaccinated school population
+S_0_n = as.numeric(single_county_data[7])    # initial susceptibility of the not vaccinated school population
 
-#Calculations for the initial infected
-I_sv = county_data$I_sv    # initial infected, symptomatic, and vaccinated
-I_sn = county_data$I_sn    # initial infected, symptomatic, and not vaccinated
-I_av = county_data$I_av    # initial infected, asymptomatic, and vaccinated
-I_an = county_data$I_an    # initial infected, asymptomatic, and not vaccinated
+# Calculations for the initial infected
+I_sv = as.numeric(single_county_data[8])     # initial infected, symptomatic, and vaccinated
+I_sn = as.numeric(single_county_data[9])     # initial infected, symptomatic, and not vaccinated
+I_av = as.numeric(single_county_data[10])    # initial infected, asymptomatic, and vaccinated
+I_an = as.numeric(single_county_data[11])    # initial infected, asymptomatic, and not vaccinated
 
 # Recovered states
-R_u = initial_recovered_unknown(county_data)      # initial recovered unknown
-R_c = 0.0       # initial recovered confirmed
+R_u = as.numeric(single_county_data[12])     # initial recovered unknown
+R_c = 0.0                        # initial recovered confirmed
 
 # Initial test values (no tests administered)
 TFN_a = 0       # initial population with a false negative and asymptomatic
@@ -283,17 +286,25 @@ TISO_ap = 0     # initial population tested with infection, in isolation, asympt
 TISO_sn = 0     # initial population tested with infection, not in isolation, symptomatic
 TISO_sp = 0     # initial population tested with infection, in isolation, symptomatic
 
-n = 15000       # student population
+n = values(school, key=c("student_pop")) + values(school, key=c("faculty_pop"))       # student population
 
 # Days in simulation
-days <- 14
+days <- values(school, key=c("days"))
 
 # Sequence for semester
 semester <- seq(1, days, by=1)
 
-# CAROLINE: not sure what these variables are defining 
-testing <- c(b_1 = b_1, b_2 = b_2, b_3 = b_3, b_4 = b_4, p0 = p0, c_a = c_a, c_s = c_s, MC = 0, T_pcr = 0, T_rap = 0, gamma = gamma, FNpcr_a = FNpcr_a, FNpcr_s = FNpcr_s, FNrap_a = FNrap_a, FNrap_s = FNrap_s)
-no_testing <- c(b_1 = b_1, b_2 = b_2, b_3 = b_3, b_4 = b_4, p0 = p0, c_a = c_a, c_s = c_s, MC = 0, T_pcr = 0, T_rap = 0, gamma = gamma, FNpcr_a = FNpcr_a, FNpcr_s = FNpcr_s, FNrap_a = FNrap_a, FNrap_s = FNrap_s)
+# Here we determine if we are pcr testing based on user input, if we are, assign pcr testing percentage to user inputted testing percentage. else, assign to rapid testing percentage
+if (values(school, key=c("pcr"))) {
+  T_pcr <- values(school, key=c("testing"))
+  T_rap <- 0
+} else {
+  T_pcr <- 0
+  T_rap <- values(school, key=c("testing"))
+}
+  
+testing <- c(b_1 = b_1, b_2 = b_2, b_3 = b_3, b_4 = b_4, p0 = p0, c_a = c_a, c_s = c_s, MC = values(school, key=c("masking")), T_pcr = T_pcr, T_rap = T_rap, gamma = gamma, FNpcr_a = FNpcr_a, FNpcr_s = FNpcr_s, FNrap_a = FNrap_a, FNrap_s = FNrap_s)
+no_testing <- c(b_1 = b_1, b_2 = b_2, b_3 = b_3, b_4 = b_4, p0 = p0, c_a = c_a, c_s = c_s, MC = values(school, key=c("masking")), T_pcr = 0, T_rap = 0, gamma = gamma, FNpcr_a = FNpcr_a, FNpcr_s = FNpcr_s, FNrap_a = FNrap_a, FNrap_s = FNrap_s)
 
 # Initial state of the system
 initial_state <- c(S_0_v = S_0_v, S_0_n = S_0_n, I_av = I_av, I_an = I_an, I_sv = I_sv, I_sn = I_sn, TFN_a = TFN_a, TFN_s = TFN_s, TISO_an = TISO_an, TISO_sn = TISO_sn, TISO_ap = TISO_ap, TISO_sp = TISO_sp, RC = R_c, RU = R_u)
@@ -302,6 +313,7 @@ initial_state <- c(S_0_v = S_0_v, S_0_n = S_0_n, I_av = I_av, I_an = I_an, I_sv 
 
 ```{r}
 # State transition differential equation definitions
+
 S_dot_v <- function(b_1, MC, S_0_v, I_av, TFN_a, TISO_an, b_2, I_sv, TFN_s, TISO_sn) {
   result <- (-b_1 * (1 - MC) * S_0_v * (I_av + TFN_a + TISO_an)) - (b_2 * (1 - MC) * S_0_v * (I_sv + TFN_s + TISO_sn))
   return(result)
@@ -382,14 +394,15 @@ library(lubridate)
 
 ```{r}
 # Define generic differential update function
+
 differentials <- function(t, state, parameters) {
   with(as.list(c(state, parameters)), {
-    dS_v <- S_dot_v(b_1, MC, S_0_v, I_av, TFN_a, TISO_an, b_2, I_sv, TFN_s, TISO_sn)
-    dS_n <- S_dot_n(b_3, MC, S_0_n, I_an, TFN_a, TISO_an, b_4, I_sn, TFN_s, TISO_sn)
-    dI_av <- I_av_dot(p0, b_1, MC, S_0_v, I_av, TFN_a, TISO_an, b_2, I_sv, TFN_s, TISO_sn, T_pcr, T_rap, gamma)
-    dI_an <- I_an_dot(p0, b_3, MC, S_0_n, I_an, TFN_a, TISO_an, b_4, I_sn, TFN_s, TISO_sn, T_pcr, T_rap, gamma)
-    dI_sv <- I_sv_dot(p0, b_1, MC, S_0_v, I_av, TFN_a, TISO_an, b_2, I_sv, TFN_s, TISO_sn, T_pcr, T_rap, gamma)
-    dI_sn <- I_sn_dot(p0, b_3, MC, S_0_n, I_an, TFN_a, TISO_an, b_4, I_sn, TFN_s, TISO_sn, T_pcr, T_rap, gamma)
+    dS_v <- S_dot_v(b_1, MC.masking, S_0_v, I_av, TFN_a, TISO_an, b_2, I_sv, TFN_s, TISO_sn)
+    dS_n <- S_dot_n(b_3, MC.masking, S_0_n, I_an, TFN_a, TISO_an, b_4, I_sn, TFN_s, TISO_sn)
+    dI_av <- I_av_dot(p0, b_1, MC.masking, S_0_v, I_av, TFN_a, TISO_an, b_2, I_sv, TFN_s, TISO_sn, T_pcr, T_rap, gamma)
+    dI_an <- I_an_dot(p0, b_3, MC.masking, S_0_n, I_an, TFN_a, TISO_an, b_4, I_sn, TFN_s, TISO_sn, T_pcr, T_rap, gamma)
+    dI_sv <- I_sv_dot(p0, b_1, MC.masking, S_0_v, I_av, TFN_a, TISO_an, b_2, I_sv, TFN_s, TISO_sn, T_pcr, T_rap, gamma)
+    dI_sn <- I_sn_dot(p0, b_3, MC.masking, S_0_n, I_an, TFN_a, TISO_an, b_4, I_sn, TFN_s, TISO_sn, T_pcr, T_rap, gamma)
     dTFN_a <- TFN_a_dot(T_pcr, FNpcr_a, I_av, I_an, T_rap, FNrap_a, gamma, TFN_a)
     dTFN_s <- TFN_s_dot(T_pcr, FNpcr_s, I_sv, I_sn, T_rap, FNrap_s, gamma, TFN_s)
     dTISO_ap <- TISO_ap_dot(c_a, T_pcr, FNpcr_a, I_av, I_an, T_rap, FNrap_a, gamma, TISO_ap)
@@ -417,8 +430,24 @@ run_simulation <- function(state, testing, no_testing, semester) {
 }
 ```
 
+```{r}
+# Function to run simulation for singular school (use this for webpage and school validation)
+
+generate_predicted_school_cases <- function(single_county_data) {
+  results <- run_simulation(initial_state, testing, no_testing, semester)
+  final_state <- results[[days]]
+  final_susceptibility <- as.numeric(final_state["S_0_v"] + final_state["S_0_n"])
+  infection_attack_rate <- (single_county_data["S_0_v"] + single_county_data["S_0_n"]) - final_susceptibility
+  number_of_cases <- ceiling(infection_attack_rate * n)
+  return(number_of_cases)
+}
+
+cases <- generate_predicted_school_cases(single_county_data)
+```
 
 ```{r}
+# Function to run simulation for every county (use this for county validation)
+
 generate_predicted_county_cases <- function(county_data) {
   predicted_cases <- c()
   for (i in 1:nrow(county_data)) {
