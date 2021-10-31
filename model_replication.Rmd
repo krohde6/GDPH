@@ -444,6 +444,36 @@ generate_predicted_school_cases <- function(single_county_data) {
 }
 
 cases <- generate_predicted_school_cases(single_county_data)
+cases
+```
+
+```{r}
+# Function to run simulation a set number of times for sensitivity analysis
+# Must modify testing and no_testing for beta value you're interested in
+sensitivity_analysis <- function(single_county_data, min_beta, max_beta, j) {
+  results <- list()
+  for (i in 1:j) {
+    beta <- runif(1, min_beta, max_beta)
+    
+    # replace beta value in this list with the beta you are testing
+    testing <- c(b_1 = beta, b_2 = b_2, b_3 = b_3, b_4 = b_4, p0 = p0, c_a = c_a, c_s = c_s, MC = values(school, key=c("masking")), T_pcr = T_pcr, T_rap = T_rap, gamma = gamma, FNpcr_a = FNpcr_a, FNpcr_s = FNpcr_s, FNrap_a = FNrap_a, FNrap_s = FNrap_s)
+    
+    # replace beta value in this list with the beta you are testing
+    no_testing <- c(b_1 = beta, b_2 = b_2, b_3 = b_3, b_4 = b_4, p0 = p0, c_a = c_a, c_s = c_s, MC = values(school, key=c("masking")), T_pcr = 0, T_rap = 0, gamma = gamma, FNpcr_a = FNpcr_a, FNpcr_s = FNpcr_s, FNrap_a = FNrap_a, FNrap_s = FNrap_s)
+    
+    sim_result <- run_simulation(initial_state, testing, no_testing, semester)
+    final_state <- sim_result[[days]]
+    final_susceptibility <- as.numeric(final_state["S_0_v"] + final_state["S_0_n"])
+    infection_attack_rate <- as.numeric((single_county_data["S_0_v"] + single_county_data["S_0_n"]) - final_susceptibility)
+    number_of_cases <- as.numeric(ceiling(infection_attack_rate * n))
+    result <- c(beta, number_of_cases)
+    results[[length(results) + 1]] <- result
+  }
+  return(results)
+}
+
+results <- sensitivity_analysis(single_county_data, 0.1, 0.15, 30)
+print(results)
 ```
 
 ```{r}
