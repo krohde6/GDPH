@@ -387,6 +387,23 @@ RU_dot <- function(gamma, I_av, I_an, I_sv, I_sn, TFN_a, TFN_s) {
 }
 ```
 
+```{r}
+# Function to determine number of cases for each day. Returns list of length days where each element is the cases for that day
+calculate_cases <- function(states) {
+  cases_per_day <- list()
+  cases_per_day[1] <- 0
+  for (i in 2:days) {
+    previous_state <- states[[i - 1]]
+    current_state <- states[[i]]
+    
+    current_susceptibility <- as.numeric(current_state["S_0_v"] + current_state["S_0_n"])
+    infection_attack_rate <- (previous_state["S_0_v"] + previous_state["S_0_n"]) - current_susceptibility
+    cases_per_day[i] <- ceiling(infection_attack_rate * n)
+    cases_per_day[i] <- as.numeric(cases_per_day[i])
+  }
+  return(cases_per_day)
+}
+```
 
 ```{r, results='hide'}
 library(deSolve)
@@ -416,6 +433,7 @@ differentials <- function(t, state, parameters) {
     return(list(c(dS_v, dS_n, dI_av, dI_an, dI_sv, dI_sn, dTFN_a, dTFN_s, dTISO_an, dTISO_sn, dTISO_ap, dTISO_sp, dRC, dRU)))
   })
 }
+
 run_simulation <- function(state, testing, no_testing, semester) {
   states <- list()
   for (t in semester) {
@@ -430,6 +448,9 @@ run_simulation <- function(state, testing, no_testing, semester) {
   }
   return(states)
 }
+
+solved_states <- run_simulation(initial_state, testing, no_testing, semester)
+cases_per_day <- calculate_cases(solved_states)
 ```
 
 ```{r}
@@ -443,9 +464,6 @@ generate_predicted_school_cases <- function(single_county_data) {
   number_of_cases <- ceiling(infection_attack_rate * n)
   return(number_of_cases)
 }
-
-cases <- generate_predicted_school_cases(single_county_data)
-cases
 ```
 
 ```{r}
