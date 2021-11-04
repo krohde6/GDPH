@@ -201,12 +201,12 @@ initial_susceptibility <- function(county_data) {
 }
 
 initial_infected_symptomatic <- function(county_data) {
-  result <- ((county_data$X14.day.cases) / county_data$population) * 0.5
+  result <- ((county_data$X14.day.cases) / county_data$population) * 0.7
   return(result)
 }
 
 initial_infected_asymptomatic <- function(county_data) {
-  result <- ((county_data$X14.day.cases) / county_data$population) * 0.5
+  result <- ((county_data$X14.day.cases) / county_data$population) * 0.3
   return(result)
 }
 
