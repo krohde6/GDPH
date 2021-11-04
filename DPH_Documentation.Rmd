@@ -1,0 +1,284 @@
+---
+title: "DPH_Documentation"
+author: "Caroline Devlin"
+date: "11/3/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+# States, Parameters, and State Equations (Written Format)
+
+Should the GA Department of Public Health need to make modifications in the code later on to reflect changes regarding new information about the Covid-19 virus, these changes should also be reflected in the following sections. For instance, if DPH decides to add additional states (and their equations) / parameters to the model, they should be defined in the following section using the same format. This section is solely for readability purposes and does not influence the inputs of the code or the results produced by the code. 
+
+## States
+
+The model created considers various states to describe a student's status as it relates to Covid-19 infection. The states are as follows:
+
+$S_v$: susceptible and vaccinated
+
+$S_n$: susceptible and not vaccinated
+
+$I_{a,v}$: infected, asymptomatic, and vaccinated
+
+$I_{a,n}$: infected, asymptomatic, and not vaccinated
+
+$I_{s,v}$: infected, symptomatic, and vaccinated
+
+$I_{s,n}$: infected, symptomatic, and not vaccinated
+
+$TFN_{a(s)}$: infected and asymptomatic (symptomatic), has been tested with false negative results
+
+$TISO^+_{a(s)}$: infected and asymptomatic (symptomatic), has been tested and currently in isolation
+
+$TISO^-_{a(s)}$: infected and asymptomatic (symptomatic), has been tested and currently not in isolation
+
+$RC$: recovered and confirmed, i.e., has been diagnosed previously
+
+$RU$: recovered and unknown, i.e., has not been diagnosed previously
+
+
+## Parameters
+
+Below are the variable definitions
+
+|          Parameter         |                                             Description                                             |           Value          |
+|:--------------------------:|:---------------------------------------------------------------------------------------------------:|:------------------------:|
+|         $\beta_1$          | Transmission rate due to contact between susceptible, vaccinated and asymptomatic infected          |            0.068         |
+|         $\beta_2$          | Transmission rate due to contact between susceptible, vaccinated and symptomatic infected           |            0.136         |
+|         $\beta_3$          | Transmission rate due to contact between susceptible, not vaccinated and asymptomatic infected      |            0.2           |
+|         $\beta_4$          | Transmission rate due to contact between susceptible, not vaccinated and symptomatic infected       |            0.4           |
+|          $\gamma$          |                              Rate of recovery of an infected individual                             |            0.1           |
+|            $p_0$           |                            Proportion of infections that are symptomatic                            |            0.7           |
+|         $C_a$,$C_s$        |        Isolation compliance rate for asymptomatic/symptomatic infected and tested individuals       |            1, 1          |
+|  $FN_{pcr_a}$,$FN_{pcr_s}$ |               False negative rate of a PCR test for asymptomatic/symptomatic patients               |         14.9%, 14.9%     |
+| $FN_{rap_a}$, $FN_{rap_s}$ |              False negative rate of a rapid test for asymptomatic/symptomatic patients              |         37%, 37%         |
+| $FP_{pcr_a}$, $FP_{pcr_s}$ |               False positive rate of a PCR test for asymptomatic/symptomatic patients               |          5%, 5%          |
+| $FP_{rap_a}$, $FP_{rap_s}$ |               False positive ate of a rapid test for asymptomatic/symptomatic patients              |         10%, 10%         |
+|          $T_{pcr}$         |                         Percentage of students that have access to PCR tests                        | Defined in each scenario |
+|  $T_{rap_a}$, $T_{rap_s}$  |                    Percentage of students that have access to rapid antigen tests                   | Defined in each scenario |
+|          $MC$              |                    Level of mask efficacy dependent on school's masking policy                      | Defined in each scenario |
+|          $VR_s$            |                    Vaccination Rate of students in school defined by school administrator           | Defined in each scenario |
+|          $VR_f$            |                    Vaccination Rate of students in school defined by school administrator           | Defined in each scenario |
+
+
+## State Equations
+
+The following equations describe the fraction of individuals in each state over time **while considering varying masking compliance situations**:
+
+$$
+\dot{S_v} = -\beta_1(1-MC)S_v(I_{a,v} + TFN_a + TISO_a^-)-\beta_2(1-MC)S_v(I_{s,v}+TFN_s+TISO_s^-)
+$$
+
+$$
+\dot{S_n} = -\beta_3(1-MC)S_n(I_{a,n} + TFN_a + TISO_a^-)-\beta_4(1-MC)S_n(I_{s,n}+TFN_s+TISO_s^-)
+$$
+
+$$
+\dot{I_{a, v}}= (1-p_0) \times [\beta_1(1-MC)S_v(I_{a,v}+TFN_a+TISO_a^-)+\beta_2(1-MC)S_v(I_{s,v}+TFN_s+TISO_s^-)]-T_{pcr} \times I_{a,v}-T{rap} \times I_{a,v} -\gamma_aI_{a,v}
+$$
+
+$$
+\dot{I_{a, n}}= (1-p_0) \times [\beta_3(1-MC)S_n(I_{a,n}+TFN_a+TISO_a^-)+\beta_4(1-MC)S_n(I_{s,n}+TFN_s+TISO_s^-)]-T_{pcr} \times I_{a,n}-T{rap} \times I_{a,n} -\gamma_aI_{a,n}
+$$
+
+
+$$
+\dot{I_{s, v}} = p_0 \times [\beta_1(1-MC)S_v(I_{a,v}+TFN_a+TISO_a^-)+\beta_2(1-MC)S_v(I_{s,v}+TFN_s+TISO_s^-)] − T_{pcr} × I_{s,v} − T_{rap} × I_{s,v} − γ_sI_{s,v}
+$$
+$$
+\dot{I_{s, v}} = p_0 \times [\beta_3(1-MC)S_n(I_{a,n}+TFN_a+TISO_a^-)+\beta_4(1-MC)S_n(I_{s,n}+TFN_s+TISO_s^-)] − T_{pcr} × I_{s,n} − T_{rap} × I_{s,n} − γ_sI_{s,n}
+$$
+
+
+$$
+\dot{TFN_a} = [T_{pcr} × FN_{pcr_a} × (I_{a,v} + I_{a,n})] + [T_{rap} × FN_{rap_a} × (I_{a,v} + I_{a,n})] − γ_a × TFN_a
+$$
+
+$$
+\dot{TFN_s} = [T_{pcr} × FN_{pcr_s} × (I_{s,v} + I_{s,n})]+ [T_{rap} × FN_{rap_s} × (I_{s,v} + I_{s,n})] − γ_s × TFN_s
+$$
+
+$$
+\dot{TISO^+_a} =C_a × [T_{pcr} × FN_{pcr_a} × (I_{a,v} + I_{a,n}) + T_{rap} × FN_{rap_a} × (I_{a,v} + I_{a,n})] − γ_a × TISO^+_a
+$$
+
+$$
+\dot{TISO^+_s} =C_s × [T_{pcr} × FN_{pcr_s} × (I_{s,v} + I_{s,n}) + T_{rap} × FN_{rap_s} × (I_{s,v} + I_{s,n})] − γ_s × TISO^+_s
+$$
+
+$$
+\dot{TISO^−_a} =(1 − C_a) × [T_{pcr} × FN_{pcr_a} × (I_{a,v} + I_{a,n}) + T_{rap} × FN_{rap_a} × (I_{a,v} + I_{a,n})] − γ_a × TISO^−_a
+$$
+
+$$
+\dot{TISO^−_s} =(1 − C_s) × [T_{pcr} × FN_{pcr_s} × (I_{s,v} + I_{s,n}) + T_{rap} × FN_{rap_s} × (I_{s,v} + I_{s,n})] − γ_s × TISO^−_s
+$$
+$$
+\dot{RC} = \gamma × [TISO_a^+ + TISO_s^+ + TISO_a^- + TISO_s^-]
+$$
+
+$$
+\dot{RU} = \gamma × [(I_{a,v} + I_{a,n}) + (I_{s,v} + I_{s,n}) + TFN_a + TFN_s]
+$$
+
+
+# Code for the Model
+
+## Downloading the Data from the GDPH Website 
+
+The following chunk of code is used to download the most recent county case data from the GDPH website. Because the data from the GDPH website downloads as a zip file, a temporary file must first be created (line 139). We can then download the data from a specified URL (GDPH website) to this temporary file (line 140). The file is then unzipped and read into R using the read.csv() function and the unz() function (line 141). It is important to note that we only want to use the data from the "county_cases.csv" file which is located within the downloaded zip file (which is why we need to specify this specific file when using the unz() function). We then unlink the temp file (line 142). 
+
+Once the data from the "county_cases.csv" file is read into R, we only want to consider certain columns of data within this file. The columns of importance are county_name, cases, population, and X14.day.cases. Lines 147 - 157 removes the unused columns and stores it in a new variable called "county_data". This variable will serve as the starting point for creating the initial states for each county and is used/seen multiple times throughout the code. There are also 2 rows of data that are not associated with a particular county, specified as Non-GA Resident/Unknown State (row 108) and Unknown (row 146) which is why we must remove these two rows from our stored variable (line 158). Line 159 attaches the column names to the variable so we can refer to them directly (cases as opposed to county_data$cases). 
+
+```{r}
+# Download data from GDPH website
+temp_file <- tempfile()
+download.file("https://ga-covid19.ondemand.sas.com/docs/ga_covid_data.zip", temp_file)
+data <- read.csv(unz(temp_file, "county_cases.csv"))
+unlink(temp_file)
+
+# Remove unused columns
+county_data <- subset(data, select = -c(county_id, 
+                                 State.FIPS.code,
+                                 County.FIPS.code,
+                                 confirmed_case_hospitalization,
+                                 antigen_case_hospitalization,
+                                 deaths,
+                                 case.rate,
+                                 death.rate,
+                                 X14.day.case.rate,
+                                 antigen_cases,
+                                 probable_deaths))
+county_data <- county_data[-c(108, 146),]
+attach(county_data)
+```
+
+##  Creating a Dictionary of All Counties
+
+The following block of code creates a dictionary called "counties" which stores each of the county names as the keys and a number 1 - 159 as the values. PURPOSE (Kyle)?
+
+```{r}
+library(hash)
+
+# Hard coded all counties in Georgia
+counties <- hash(
+                  keys=c(
+                   "Appling", "Atkinson", "Bacon", "Baker", "Baldwin", "Banks", "Barrow", "Bartow",
+                   "Ben Hill", "Berrien", "Bibb", "Bleckley", "Brantley", "Brooks", "Bryan", "Bulloch",
+                   "Burke", "Butts", "Calhoun", "Camden", "Candler", "Carroll", "Catoosa", "Charlton",
+                   "Chatham", "Chattahoochee", "Chattooga", "Cherokee", "Clarke", "Clay", "Clayton",
+                   "Clinch", "Cobb", "Coffee", "Colquitt", "Columbia", "Cook", "Coweta", "Crawford", "Crisp",
+                   "Dade", "Dawson", "DeKalb", "Decatur", "Dodge", "Dooly", "Dougherty", "Douglas", "Early",
+                   "Echols", "Effingham", "Elbert", "Emanuel", "Evans", "Fannin", "Fayette", "Floyd",
+                   "Forsyth", "Franklin", "Fulton", "Gilmer", "Glascock", "Glynn", "Gordon", "Grady",
+                   "Greene", "Gwinnett", "Habersham", "Hall", "Hancock", "Haralson", "Harris", "Hart",
+                   "Heard", "Henry", "Houston", "Irwin", "Jackson", "Jasper", "Jeff Davis", "Jefferson",
+                   "Jenkins", "Johnson", "Jones", "Lamar", "Lanier", "Laurens", "Lee", "Liberty", "Lincoln",
+                   "Long", "Lowndes", "Lumpkin", "Macon", "Madison", "Marion", "McDuffie", "McIntosh", 
+                   "Meriwether", "Miller", "Mitchell", "Monroe", "Montgomery", "Morgan", "Murray", 
+                   "Muscogee", "Newton", "Oconee", "Oglethorpe", "Paulding", "Peach", "Pickens", "Pierce", 
+                   "Pike", "Polk", "Pulaski", "Putnam", "Quitman", "Rabun", "Randolph", "Richmond", 
+                   "Rockdale", "Schley", "Screven", "Seminole", "Spalding", "Stephens", "Stewart", "Sumter",
+                   "Talbot", "Taliaferro", "Tattnall", "Taylor", "Telfair", "Terrell", "Thomas", "Tift", 
+                   "Toombs", "Towns", "Treutlen", "Troup", "Turner", "Twiggs", "Union", "Upson", "Walker",
+                   "Walton", "Ware", "Warren", "Washington", "Wayne", "Webster", "Wheeler", "White", 
+                   "Whitfield", "Wilcox", "Wilkes", "Wilkinson", "Worth"
+                  ),
+                  values=1:159
+                )
+```
+
+## A Function to Store User Inputted Data for a Specific School 
+
+The following block of code creates a function that can be called for a specific school. The input parameters of the function align with the values that a decision-maker is able to input into the simulation, such parameters are defined as follows:
+
+**county (string):** county that user wants to view information for
+
+**days (integer):** number of days that the user wants to run the simulation for
+
+**masking (decimal / numeric):** the proportion of the school population that is wearing masks (0 - 1 with 0.25 intervals)
+
+**student_pop (integer):** the total number of students attending school in-person
+
+**faculty_pop (integer):** the total number of faculty and staff attending school in-person
+
+**student_vax (decimal):** the proportion of the student population that are fully vaccinated 
+
+**faculty_vax (decimal):** the proportion of the faculty/staff population that are fully vaccinated
+
+**testing (decimal):** the proportion of the school population that are regularly participating in surveillance testing 
+
+**pcr (boolean):** a true/false value that specifies what type of surveillance testing a school is participating in (TRUE if PCR testing, FALSE if Rapid Antigen Testing)
+
+Ultimately, this function is called on the back-end to store the values in a dictionary which are inputted by the user on the front-end interface. We can see a call to this function in lines ____ - ____, which ... WHERE CAN WE SEE THIS FUNCTION BEING USED (?)
+
+```{r}
+# COLIN: this function can be called with all of the user inputted data and returns a dictionary for that school
+# Use this function to get county hash with user inputted data (pcr should be a boolean true if pcr selected, false otherwise)
+generate_school <- function(county, days, masking, student_pop, faculty_pop, student_vax, faculty_vax, testing, pcr) {
+  school <- hash()
+  school["county"]           <- county
+  school["days"]             <- days
+  school["masking"]          <- masking
+  school["student_pop"]      <- student_pop
+  school["faculty_pop"]      <- faculty_pop
+  school["student_vax"]      <- student_vax
+  school["faculty_vax"]      <- faculty_vax
+  school["testing"]          <- testing
+  school["pcr"]              <- pcr
+  return(school)
+}
+```
+
+## Set of Functions to Determine the Initial States for each County
+
+The following set of functions are used to determine the initial states for each county using the data obtained from the "county_cases.csv" file from the GDPH website and stored in the "county_data" variable defined previously. 
+
+### initial_susceptibility
+
+This function determines the proportion of the population that starts out in the susceptible state. It is important to note that at this stage, the susceptible state has not yet been split into the susceptible & vaccinated vs. susceptible & not vaccinated state. The function takes in a data set as the parameter (in our case, it will always be the "county_data" variable, but this will always have to be specified when being called). The equation to determine initial susceptibility takes the total population of a county, subtracts the number of total cases the county has experienced (as they have technically been infected and recovered already), and divides by the total county population to get the proportion. If the data passed into this function were to change their header names, modifications to this function would need to occur in order to reflect these changes. For example, if the data file changes the column header "population" to "county_population", the function's equation would need to change to: result <- (county_data\$county_population - county_data\$cases) / county_data\$county_population.
+
+### initial_infected_symptomatic
+
+This function determines the proportion of the population that starts out in the infected & symptomatic state. It is important to note that at this stage, the infected & symptomatic state has not yet been split into the infected & symptomatic & vaccinated vs. infected & symptomatic & not vaccinated state. The function takes in a data set as the parameter (in our case, it will always be the "county_data" variable, but this will always have to be specified when being called). The equation to determine initial infected & symptomatic takes the number of cases in the past 14 days (which are the people currently infected), divides by the total county population to get the proportion of the population, and then multiplies by the proportion of cases that are symptomatic (p0, which we have determined to be 0.7). If the data passed into this function were to change their header names, modifications to this function would need to occur in order to reflect these changes. For example, if the data file changes the column header "X14.day.cases" to "fourteen.day.cases", the function's equation would need to change to: result <- ((county_data\$fourteen.day.cases) / county_data\$population) * 0.7. [Furthermore, if the proportion of symptomatic cases changes, this change would need to be reflected here, modifying 0.7 to the desired proportion. -- MAYBE WE DON'T HARDCODE THIS VALUE]. 
+
+### initial_infected_asymptomatic
+
+This function determines the proportion of the population that starts out in the infected & asymptomatic state. It is important to note that at this stage, the infected & asymptomatic state has not yet been split into the infected & asymptomatic & vaccinated vs. infected & asymptomatic & not vaccinated state. The function takes in a data set as the parameter (in our case, it will always be the "county_data" variable, but this will always have to be specified when being called). The equation to determine initial infected & asymptomatic takes the number of cases in the past 14 days (which are the people currently infected), divides by the total county population to get the proportion of the population, and then multiplies by the proportion of cases that are asymptomatic (1 - p0, which we have determined to be 0.3 because 1 - 0.7 = 0.3). If the data passed into this function were to change their header names, modifications to this function would need to occur in order to reflect these changes. For example, if the data file changes the column header "X14.day.cases" to "fourteen.day.cases", the function's equation would need to change to: result <- ((county_data\$fourteen.day.cases) / county_data\$population) * 0.3. [Furthermore, if the proportion of asymptomatic cases changes, this change would need to be reflected here, modifying 0.3 to the desired proportion. -- MAYBE WE DON'T HARDCODE THIS VALUE].
+
+**Note: if the proportion of symptomatic cases changes in the initial_infected_symptomatic equation, the proportion of asymptomatic cases must also change to 1 - [new value] so that they sum to 1.**
+
+### initial_recovered_unknown
+
+This function determines the proportion of the population that starts out in the recovered unknown state, which takes into account the people who have been infected and assumed recovered from the Covid-19 virus. The function takes in a data set as the parameter (in our case, it will always be the "county_data" variable, but this will always have to be specified when being called). The equation to determine initial recovered unknown takes the total number of cases that a county has had, subtracts the number of people that are currently infected (X14.day.cases), and divides by the total county population to get the proportion. If the data passed into this function were to change their header names, modifications to this function would need to occur in order to reflect these changes. For example, if the data file changes the column header "X14.day.cases" to "fourteen.day.cases", the function's equation would need to change to: result <- (county_data\$cases - county_data\$fourteen.day.cases) / county_data\$population.
+
+```{r}
+# Functions defining initial states for all counties
+# Need to change these functions to not hard-code the proportion of symptomatic vs. asymptomatic 
+
+initial_susceptibility <- function(county_data) {
+  result <- (county_data$population - county_data$cases) / county_data$population
+  return(result)
+}
+
+initial_infected_symptomatic <- function(county_data) {
+  result <- ((county_data$X14.day.cases) / county_data$population) * 0.7
+  return(result)
+}
+
+initial_infected_asymptomatic <- function(county_data) {
+  result <- ((county_data$X14.day.cases) / county_data$population) * 0.3
+  return(result)
+}
+
+initial_recovered_unknown <- function(county_data) {
+  result <- (county_data$cases - county_data$X14.day.cases) / county_data$population
+  return(result)
+}
+```
+
+
