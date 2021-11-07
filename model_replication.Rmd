@@ -180,7 +180,7 @@ generate_school <- function(county, days, masking, student_pop, faculty_pop, stu
   school <- hash()
   school["county"]           <- county
   school["days"]             <- days
-  school["masking"]          <- masking
+  school["masking"]          <- masking * (1/9)
   school["student_pop"]      <- student_pop
   school["faculty_pop"]      <- faculty_pop
   school["student_vax"]      <- student_vax
@@ -217,13 +217,13 @@ initial_recovered_unknown <- function(county_data) {
 
 # COLIN: here is where you should get all values from the user inputted data and call generate_school(). it should look something like this
 # just replace the hard coded values with the values provided by the user
-county <- "Fulton"
-days <- 14
-masking <- 0.0
+county <- "Gwinnett"
+days <- 4
+masking <- 0.9
 testing <- 0
 pcr <- TRUE
-student_pop <- 500
-faculty_pop <- 50
+student_pop <- 3350
+faculty_pop <- 187
 VR_s <- 0
 VR_f <- 0
 
@@ -391,10 +391,10 @@ RU_dot <- function(gamma, I_av, I_an, I_sv, I_sn, TFN_a, TFN_s) {
 # Function to determine number of cases for each day. Returns list of length days where each element is the cases for that day
 calculate_cases <- function(states) {
   cases_per_day <- list()
-  cases_per_day[1] <- 0
-  for (i in 2:days) {
-    previous_state <- states[[i - 1]]
-    current_state <- states[[i]]
+  for (i in 1:(days - 1)) {
+    print(i)
+    previous_state <- states[[i]]
+    current_state <- states[[i + 1]]
     
     current_susceptibility <- as.numeric(current_state["S_0_v"] + current_state["S_0_n"])
     infection_attack_rate <- (previous_state["S_0_v"] + previous_state["S_0_n"]) - current_susceptibility
@@ -405,7 +405,19 @@ calculate_cases <- function(states) {
     }
     cases_per_day[i] <- as.numeric(cases_per_day[i])
   }
+  cases_per_day[days] <- 0
   return(cases_per_day)
+}
+
+# Function to determine cumulative cases over the simulation duration. Returns list of length days where each element is the total cases since the start of the simulation
+calculate_cumulative_cases <- function(cases_per_day) {
+  cumulative_cases <- list()
+  running_total <- 0
+  for (i in 1:length(cases_per_day)) {
+    cumulative_cases[i] <- running_total
+    running_total <- running_total + as.numeric(cases_per_day[i])
+  }
+  return(cumulative_cases)
 }
 ```
 
@@ -455,6 +467,7 @@ run_simulation <- function(state, testing, no_testing, semester) {
 
 solved_states <- run_simulation(initial_state, testing, no_testing, semester)
 cases_per_day <- calculate_cases(solved_states)
+cumulative_cases <- calculate_cumulative_cases(cases_per_day)
 ```
 
 ```{r}
@@ -497,6 +510,15 @@ sensitivity_analysis <- function(single_county_data, min_beta, max_beta, j) {
 
 results <- sensitivity_analysis(single_county_data, 0.1, 0.15, 30)
 print(results)
+```
+
+```{r}
+# Function to generate cases per day graph
+generate_graphs <- function(cumulative_cases) {
+  x <- 1:days
+  graph <- plot(x, cumulative_cases)
+  lines(x, cumulative_cases)
+}
 ```
 
 ```{r}
