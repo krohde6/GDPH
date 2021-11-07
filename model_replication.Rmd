@@ -398,7 +398,11 @@ calculate_cases <- function(states) {
     
     current_susceptibility <- as.numeric(current_state["S_0_v"] + current_state["S_0_n"])
     infection_attack_rate <- (previous_state["S_0_v"] + previous_state["S_0_n"]) - current_susceptibility
-    cases_per_day[i] <- ceiling(infection_attack_rate * n)
+    if ((infection_attack_rate * n) >= 0.5) {
+      cases_per_day[i] <- ceiling(infection_attack_rate * n)
+    } else {
+      cases_per_day[i] <- floor(infection_attack_rate * n)
+    }
     cases_per_day[i] <- as.numeric(cases_per_day[i])
   }
   return(cases_per_day)
