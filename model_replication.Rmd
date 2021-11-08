@@ -180,7 +180,7 @@ generate_school <- function(county, days, masking, student_pop, faculty_pop, stu
   school <- hash()
   school["county"]           <- county
   school["days"]             <- days
-  school["masking"]          <- masking
+  school["masking"]          <- masking * (1/9)
   school["student_pop"]      <- student_pop
   school["faculty_pop"]      <- faculty_pop
   school["student_vax"]      <- student_vax
@@ -194,6 +194,7 @@ generate_school <- function(county, days, masking, student_pop, faculty_pop, stu
 
 ```{r}
 # Functions defining initial states for all counties
+p0 = 0.7
 
 initial_susceptibility <- function(county_data) {
   result <- (county_data$population - county_data$cases) / county_data$population
@@ -201,12 +202,12 @@ initial_susceptibility <- function(county_data) {
 }
 
 initial_infected_symptomatic <- function(county_data) {
-  result <- ((county_data$X14.day.cases) / county_data$population) * 0.5
+  result <- ((county_data$X14.day.cases) / county_data$population) * p0
   return(result)
 }
 
 initial_infected_asymptomatic <- function(county_data) {
-  result <- ((county_data$X14.day.cases) / county_data$population) * 0.5
+  result <- ((county_data$X14.day.cases) / county_data$population) * (1 - p0)
   return(result)
 }
 
@@ -217,13 +218,13 @@ initial_recovered_unknown <- function(county_data) {
 
 # COLIN: here is where you should get all values from the user inputted data and call generate_school(). it should look something like this
 # just replace the hard coded values with the values provided by the user
-county <- "Fulton"
-days <- 14
-masking <- 0.0
+county <- "Gwinnett"
+days <- 4
+masking <- 0.9
 testing <- 0
 pcr <- TRUE
-student_pop <- 500
-faculty_pop <- 50
+student_pop <- 3350
+faculty_pop <- 187
 VR_s <- 0
 VR_f <- 0
 
@@ -235,11 +236,11 @@ percent_school_vaccinated <- (students_vaccinated + faculty_vaccinated) / total_
 # Scale county_data for all counties to include initial states for simulation
 county_data$S_0 <- initial_susceptibility(county_data)
 county_data$S_0_v <- (county_data$S_0)*percent_school_vaccinated
-county_data$S_0_n <- (county_data$S_0)*(1-percent_school_vaccinated)
-county_data$I_sv <- 0.5*initial_infected_symptomatic(county_data)
-county_data$I_sn <- 0.5*initial_infected_symptomatic(county_data)
-county_data$I_av <- 0.5*initial_infected_asymptomatic(county_data)
-county_data$I_an <- 0.5*initial_infected_asymptomatic(county_data)
+county_data$S_0_n <- (county_data$S_0)*(1 - percent_school_vaccinated)
+county_data$I_sv <- 0.5 * initial_infected_symptomatic(county_data)
+county_data$I_sn <- 0.5 * initial_infected_symptomatic(county_data)
+county_data$I_av <- 0.5 * initial_infected_asymptomatic(county_data)
+county_data$I_an <- 0.5 * initial_infected_asymptomatic(county_data)
 county_data$R_u <- initial_recovered_unknown(county_data)
 county_data$total <- county_data$S_0_v + county_data$S_0_n + county_data$I_sv + county_data$I_av + county_data$I_sn + county_data$I_an + county_data$R_u
 
@@ -249,10 +250,10 @@ single_county_data <- county_data[values(counties, key=c(county)),]
 
 ```{r}
 # Initial built-in parameters
-b_1 = 0.068       # transmission rate due to contact between susceptible vaccinated and infected asymptomatic patient
-b_2 = 0.136       # transmission rate due to contact between susceptible vaccinated and infected symptomatic patient
-b_3 = 0.2         # transmission rate due to contact between susceptible not vaccinated and infected asymptomatic patient
-b_4 = 0.4         # transmission rate due to contact between susceptible not vaccinated and infected symptomatic patient
+b_1 = 0.068        # transmission rate due to contact between susceptible vaccinated and infected asymptomatic patient
+b_2 = 0.136        # transmission rate due to contact between susceptible vaccinated and infected symptomatic patient
+b_3 = 0.2          # transmission rate due to contact between susceptible not vaccinated and infected asymptomatic patient
+b_4 = 0.4          # transmission rate due to contact between susceptible not vaccinated and infected symptomatic patient
 gamma = 0.1        # rate of recovery for an infected individual
 p0 = 0.7           # proportion of infections that are symptomatic
 c_a = 1            # isolation compliance asymptomatic infected + tested patients
@@ -278,7 +279,7 @@ I_an = as.numeric(single_county_data[11])    # initial infected, asymptomatic, a
 
 # Recovered states
 R_u = as.numeric(single_county_data[12])     # initial recovered unknown
-R_c = 0.0                        # initial recovered confirmed
+R_c = 0.0                                    # initial recovered confirmed
 
 # Initial test values (no tests administered)
 TFN_a = 0       # initial population with a false negative and asymptomatic
@@ -288,7 +289,7 @@ TISO_ap = 0     # initial population tested with infection, in isolation, asympt
 TISO_sn = 0     # initial population tested with infection, not in isolation, symptomatic
 TISO_sp = 0     # initial population tested with infection, in isolation, symptomatic
 
-n = values(school, key=c("student_pop")) + values(school, key=c("faculty_pop"))       # student population
+n = values(school, key=c("student_pop")) + values(school, key=c("faculty_pop"))       # school population
 
 # Days in simulation
 days <- values(school, key=c("days"))
@@ -387,6 +388,39 @@ RU_dot <- function(gamma, I_av, I_an, I_sv, I_sn, TFN_a, TFN_s) {
 }
 ```
 
+```{r}
+# Function to determine number of cases for each day. Returns list of length days where each element is the cases for that day
+calculate_cases <- function(states) {
+  cases_per_day <- list()
+  for (i in 1:(days - 1)) {
+    print(i)
+    previous_state <- states[[i]]
+    current_state <- states[[i + 1]]
+    
+    current_susceptibility <- as.numeric(current_state["S_0_v"] + current_state["S_0_n"])
+    infection_attack_rate <- (previous_state["S_0_v"] + previous_state["S_0_n"]) - current_susceptibility
+    if ((infection_attack_rate * n) >= 0.5) {
+      cases_per_day[i] <- ceiling(infection_attack_rate * n)
+    } else {
+      cases_per_day[i] <- floor(infection_attack_rate * n)
+    }
+    cases_per_day[i] <- as.numeric(cases_per_day[i])
+  }
+  cases_per_day[days] <- 0
+  return(cases_per_day)
+}
+
+# Function to determine cumulative cases over the simulation duration. Returns list of length days where each element is the total cases since the start of the simulation
+calculate_cumulative_cases <- function(cases_per_day) {
+  cumulative_cases <- list()
+  running_total <- 0
+  for (i in 1:length(cases_per_day)) {
+    cumulative_cases[i] <- running_total
+    running_total <- running_total + as.numeric(cases_per_day[i])
+  }
+  return(cumulative_cases)
+}
+```
 
 ```{r, results='hide'}
 library(deSolve)
@@ -416,6 +450,7 @@ differentials <- function(t, state, parameters) {
     return(list(c(dS_v, dS_n, dI_av, dI_an, dI_sv, dI_sn, dTFN_a, dTFN_s, dTISO_an, dTISO_sn, dTISO_ap, dTISO_sp, dRC, dRU)))
   })
 }
+
 run_simulation <- function(state, testing, no_testing, semester) {
   states <- list()
   for (t in semester) {
@@ -430,6 +465,10 @@ run_simulation <- function(state, testing, no_testing, semester) {
   }
   return(states)
 }
+
+solved_states <- run_simulation(initial_state, testing, no_testing, semester)
+cases_per_day <- calculate_cases(solved_states)
+cumulative_cases <- calculate_cumulative_cases(cases_per_day)
 ```
 
 ```{r}
@@ -443,9 +482,6 @@ generate_predicted_school_cases <- function(single_county_data) {
   number_of_cases <- ceiling(infection_attack_rate * n)
   return(number_of_cases)
 }
-
-cases <- generate_predicted_school_cases(single_county_data)
-cases
 ```
 
 ```{r}
@@ -475,6 +511,15 @@ sensitivity_analysis <- function(single_county_data, min_beta, max_beta, j) {
 
 results <- sensitivity_analysis(single_county_data, 0.1, 0.15, 30)
 print(results)
+```
+
+```{r}
+# Function to generate cases per day graph
+generate_graphs <- function(cumulative_cases) {
+  x <- 1:days
+  graph <- plot(x, cumulative_cases)
+  lines(x, cumulative_cases)
+}
 ```
 
 ```{r}
