@@ -141,8 +141,10 @@ county_data <- subset(data, select = -c(county_id,
                                  antigen_cases,
                                  probable_deaths))
 county_data <- county_data[-c(108, 146),]
-county_data$cases <- ceiling(county_data$cases * runif(1, min = 3.4, max = 4.7))
+
+# Account for 1 in 4 cases being reported to DPH
 county_data$X14.day.cases <- ceiling(county_data$X14.day.cases * runif(1, min = 3.4, max = 4.7))
+
 attach(county_data)
 ```
 
