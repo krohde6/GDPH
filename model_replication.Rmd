@@ -194,6 +194,7 @@ generate_school <- function(county, days, masking, student_pop, faculty_pop, stu
 
 ```{r}
 # Functions defining initial states for all counties
+p0 = 0.7
 
 initial_susceptibility <- function(county_data) {
   result <- (county_data$population - county_data$cases) / county_data$population
@@ -201,12 +202,12 @@ initial_susceptibility <- function(county_data) {
 }
 
 initial_infected_symptomatic <- function(county_data) {
-  result <- ((county_data$X14.day.cases) / county_data$population) * 0.5
+  result <- ((county_data$X14.day.cases) / county_data$population) * p0
   return(result)
 }
 
 initial_infected_asymptomatic <- function(county_data) {
-  result <- ((county_data$X14.day.cases) / county_data$population) * 0.5
+  result <- ((county_data$X14.day.cases) / county_data$population) * (1 - p0)
   return(result)
 }
 
@@ -235,11 +236,11 @@ percent_school_vaccinated <- (students_vaccinated + faculty_vaccinated) / total_
 # Scale county_data for all counties to include initial states for simulation
 county_data$S_0 <- initial_susceptibility(county_data)
 county_data$S_0_v <- (county_data$S_0)*percent_school_vaccinated
-county_data$S_0_n <- (county_data$S_0)*(1-percent_school_vaccinated)
-county_data$I_sv <- 0.5*initial_infected_symptomatic(county_data)
-county_data$I_sn <- 0.5*initial_infected_symptomatic(county_data)
-county_data$I_av <- 0.5*initial_infected_asymptomatic(county_data)
-county_data$I_an <- 0.5*initial_infected_asymptomatic(county_data)
+county_data$S_0_n <- (county_data$S_0)*(1 - percent_school_vaccinated)
+county_data$I_sv <- 0.5 * initial_infected_symptomatic(county_data)
+county_data$I_sn <- 0.5 * initial_infected_symptomatic(county_data)
+county_data$I_av <- 0.5 * initial_infected_asymptomatic(county_data)
+county_data$I_an <- 0.5 * initial_infected_asymptomatic(county_data)
 county_data$R_u <- initial_recovered_unknown(county_data)
 county_data$total <- county_data$S_0_v + county_data$S_0_n + county_data$I_sv + county_data$I_av + county_data$I_sn + county_data$I_an + county_data$R_u
 
@@ -249,10 +250,10 @@ single_county_data <- county_data[values(counties, key=c(county)),]
 
 ```{r}
 # Initial built-in parameters
-b_1 = 0.068       # transmission rate due to contact between susceptible vaccinated and infected asymptomatic patient
-b_2 = 0.136       # transmission rate due to contact between susceptible vaccinated and infected symptomatic patient
-b_3 = 0.2         # transmission rate due to contact between susceptible not vaccinated and infected asymptomatic patient
-b_4 = 0.4         # transmission rate due to contact between susceptible not vaccinated and infected symptomatic patient
+b_1 = 0.068        # transmission rate due to contact between susceptible vaccinated and infected asymptomatic patient
+b_2 = 0.136        # transmission rate due to contact between susceptible vaccinated and infected symptomatic patient
+b_3 = 0.2          # transmission rate due to contact between susceptible not vaccinated and infected asymptomatic patient
+b_4 = 0.4          # transmission rate due to contact between susceptible not vaccinated and infected symptomatic patient
 gamma = 0.1        # rate of recovery for an infected individual
 p0 = 0.7           # proportion of infections that are symptomatic
 c_a = 1            # isolation compliance asymptomatic infected + tested patients
@@ -278,7 +279,7 @@ I_an = as.numeric(single_county_data[11])    # initial infected, asymptomatic, a
 
 # Recovered states
 R_u = as.numeric(single_county_data[12])     # initial recovered unknown
-R_c = 0.0                        # initial recovered confirmed
+R_c = 0.0                                    # initial recovered confirmed
 
 # Initial test values (no tests administered)
 TFN_a = 0       # initial population with a false negative and asymptomatic
@@ -288,7 +289,7 @@ TISO_ap = 0     # initial population tested with infection, in isolation, asympt
 TISO_sn = 0     # initial population tested with infection, not in isolation, symptomatic
 TISO_sp = 0     # initial population tested with infection, in isolation, symptomatic
 
-n = values(school, key=c("student_pop")) + values(school, key=c("faculty_pop"))       # student population
+n = values(school, key=c("student_pop")) + values(school, key=c("faculty_pop"))       # school population
 
 # Days in simulation
 days <- values(school, key=c("days"))
