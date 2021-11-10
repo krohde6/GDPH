@@ -565,6 +565,8 @@ generate_predicted_school_cases <- function(single_county_data) {
   number_of_cases <- ceiling(infection_attack_rate * n)
   return(number_of_cases)
 }
+
+result <- generate_predicted_school_cases(single_county_data)
 ```
 
 ```{r}
