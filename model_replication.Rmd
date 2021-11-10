@@ -509,7 +509,7 @@ calculate_cases_multiple_simulations <- function(j, results) {
 }
 
 cases_per_day_multiple_simulations <- run_simulation_repeated(40, initial_state, testing, no_testing, semester)
-total_cases <- calculate_cases_multiple_simulations(40, results)
+total_cases <- calculate_cases_multiple_simulations(40, cases_per_day_multiple_simulations)
 
 # Function converts total_cases to a list of list. Outer list is number of cases for day i within each simulation. Inner list is of length number of simulations
 reorganize_total_cases <- function(n, total_cases) {
