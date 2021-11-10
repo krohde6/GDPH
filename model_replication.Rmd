@@ -397,13 +397,14 @@ RU_dot <- function(gamma, I_av, I_an, I_sv, I_sn, TFN_a, TFN_s) {
 calculate_cases <- function(states) {
   cases_per_day <- list()
   cases_per_day[1] <- 0
-  for (i in 2:(days)) {
+  for (i in 2:days) {
     previous_state <- states[[i - 1]]
     current_state <- states[[i]]
     
     current_susceptibility <- as.numeric(current_state["S_0_v"] + current_state["S_0_n"])
-    infection_attack_rate <- (previous_state["S_0_v"] + previous_state["S_0_n"]) - current_susceptibility
-    if ((infection_attack_rate * n) >= 0.5) {
+    infection_attack_rate <- as.numeric((previous_state["S_0_v"] + previous_state["S_0_n"])) - current_susceptibility
+    decimal_of_IAR <- (infection_attack_rate * n) - floor(infection_attack_rate * n)
+    if (decimal_of_IAR >= 0.5) {
       cases_per_day[i] <- ceiling(infection_attack_rate * n)
     } else {
       cases_per_day[i] <- floor(infection_attack_rate * n)
@@ -524,7 +525,7 @@ reorganize_total_cases <- function(n, total_cases) {
   return(reorganized_cases)
 }
 
-reorganized_cases <- reorganize_cases_per_day(40, total_cases)
+reorganized_cases <- reorganize_total_cases(40, total_cases)
 
 # Get average cases per day
 avg_cases_per_day <- function(reorganized_cases) {
