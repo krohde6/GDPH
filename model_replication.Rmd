@@ -225,12 +225,12 @@ initial_recovered_unknown <- function(county_data) {
 county <- "Gwinnett"
 days <- 14
 masking <- 0.9
-testing <- 0
+testing <- 0.0
 pcr <- TRUE
 student_pop <- 3350
 faculty_pop <- 187
-VR_s <- 0
-VR_f <- 0
+VR_s <- 0.0
+VR_f <- 0.0
 
 students_vaccinated <- student_pop * VR_s
 faculty_vaccinated <- faculty_pop * VR_f
@@ -531,7 +531,14 @@ reorganized_cases <- reorganize_total_cases(40, total_cases)
 avg_cases_per_day <- function(reorganized_cases) {
   day_avgs <- list()
   for (i in 1:days) {
-    day_avgs[[length(day_avgs) + 1]] <- mean(as.numeric(reorganized_cases[[i]]))
+    avg_case <- mean(as.numeric(reorganized_cases[[i]]))
+    avg_case_decimal <- avg_case - floor(avg_case)
+    if (avg_case_decimal >= 0.5) {
+      avg_case_int <- as.numeric(ceiling(avg_case))
+    } else {
+      avg_case_int <- as.numeric(floor(avg_case))
+    }
+    day_avgs[[length(day_avgs) + 1]] <- avg_case_int
   }
   return(day_avgs)
 }
@@ -545,7 +552,6 @@ graph_avgs <- function(cases_per_day) {
 }
 
 graph_avgs(reorganized_cases)
-```
 ```
 
 ```{r}
