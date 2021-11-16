@@ -220,15 +220,15 @@ initial_recovered_unknown <- function(county_data) {
   return(result)
 }
 
-county <- "Gwinnett"
+county <- "Fulton"
 days <- 14
-masking <- 0.9
-testing <- 0.0
+masking <- 1
+testing <- 0.5
 pcr <- TRUE
-student_pop <- 3350
-faculty_pop <- 187
-VR_s <- 0.0
-VR_f <- 0.0
+student_pop <- 2000
+faculty_pop <- 75
+VR_s <- 0.1
+VR_f <- 0.5
 
 students_vaccinated <- student_pop * VR_s
 faculty_vaccinated <- faculty_pop * VR_f
@@ -310,10 +310,16 @@ if (values(school, key=c("pcr"))) {
 
 # Initial built in parameters for testing and no testing days
 testing <- c(b_1 = b_1[1], b_2 = b_2[1], b_3 = b_3[1], b_4 = b_4[1], p0 = p0, c_a = c_a, c_s = c_s, MC = values(school, key=c("masking")), T_pcr = T_pcr, T_rap = T_rap, gamma = gamma, FNpcr_a = FNpcr_a, FNpcr_s = FNpcr_s, FNrap_a = FNrap_a, FNrap_s = FNrap_s)
+
 no_testing <- c(b_1 = b_1[1], b_2 = b_2[1], b_3 = b_3[1], b_4 = b_4[1], p0 = p0, c_a = c_a, c_s = c_s, MC = values(school, key=c("masking")), T_pcr = 0, T_rap = 0, gamma = gamma, FNpcr_a = FNpcr_a, FNpcr_s = FNpcr_s, FNrap_a = FNrap_a, FNrap_s = FNrap_s)
 
 # Initial state of the system
 initial_state <- c(S_0_v = S_0_v, S_0_n = S_0_n, I_av = I_av, I_an = I_an, I_sv = I_sv, I_sn = I_sn, TFN_a = TFN_a, TFN_s = TFN_s, TISO_an = TISO_an, TISO_sn = TISO_sn, TISO_ap = TISO_ap, TISO_sp = TISO_sp, RC = R_c, RU = R_u)
+
+# Initial built in parameters for testing and no testing days (no intervention strategies)
+testing_baseline <- c(b_1 = b_1[1], b_2 = b_2[1], b_3 = b_3[1], b_4 = b_4[1], p0 = p0, c_a = c_a, c_s = c_s, MC.masking = 0, T_pcr = 0, T_rap = 0, gamma = gamma, FNpcr_a = FNpcr_a, FNpcr_s = FNpcr_s, FNrap_a = FNrap_a, FNrap_s = FNrap_s)
+
+no_testing_baseline <- c(b_1 = b_1[1], b_2 = b_2[1], b_3 = b_3[1], b_4 = b_4[1], p0 = p0, c_a = c_a, c_s = c_s, MC.masking = 0, T_pcr = 0, T_rap = 0, gamma = gamma, FNpcr_a = FNpcr_a, FNpcr_s = FNpcr_s, FNrap_a = FNrap_a, FNrap_s = FNrap_s)
 ```
 
 
@@ -462,7 +468,7 @@ run_simulation_repeated <- function(j, state, testing, no_testing, semester) {
 
 The following code block is primarily used for statistical analysis of the results from running the simulation $i$ number of times. By default, $i = 40$. To change the total number of iterations, please modify the $40$ found in the function call on the last line of the previous code block.
 ```{r}
-library(plotrix)
+library(ggplot2)
 
 # Function to determine number of cases for each day. Returns list of length days where each element is the cases for that day
 calculate_cases <- function(states) {
@@ -555,8 +561,8 @@ margins_per_day <- function(reorganized_cases) {
   return(margins)
 }
 
-# Use this function to graph average cases per day over days in simulation
-generate_graph <- function(reorganized_cases) {
+# Use this function to graph average cases per day over days in simulation. Returns graph as object
+generate_graph_cases_per_day <- function(reorganized_cases, reorganized_cases_baseline) {
   n <- length(reorganized_cases[1])
   avgs <- avg_cases_per_day(reorganized_cases)
   st_devs <- st_dev_cases_per_day(reorganized_cases)
@@ -564,26 +570,78 @@ generate_graph <- function(reorganized_cases) {
   upper <- as.numeric(avgs) - as.numeric(margins)
   lower <- as.numeric(avgs) + as.numeric(margins)
   
+  avgs_base <- avg_cases_per_day(reorganized_cases_baseline)
+  st_devs_base <- st_dev_cases_per_day(reorganized_cases_baseline)
+  margins_base <- margins_per_day(reorganized_cases_baseline)
+  upper_base <- as.numeric(avgs_base) - as.numeric(margins_base)
+  lower_base <- as.numeric(avgs_base) + as.numeric(margins_base)
+  
   x <- 1:days
   y <- as.numeric(avg_cases_per_day(reorganized_cases))
-  data <- data.frame(x, y, lower, upper)
+  y_base <- as.numeric(avg_cases_per_day(reorganized_cases_baseline))
   
-  plotCI(x = data$x,
-         y = data$y,
-         li = data$lower,
-         ui = data$upper)
-  lines(x, y)
+  data <- data.frame(x, y, lower, upper)
+  data_base <- data.frame(x, y_base, lower_base, upper_base)
+  df <- data.frame(data, data_base)
+  
+  p <- ggplot(data = df, aes(x = x)) +
+        geom_line(aes(y = y, colour="Intervention")) +
+        geom_point(aes(x=x, y=y, colour="Intervention")) +
+        geom_ribbon(aes(ymin = lower, ymax = upper), alpha = 0.05) +
+        geom_line(aes(y = y_base, colour="No Intervention")) +
+        geom_point(aes(x=x, y=y_base, colour="No Intervention")) +
+        geom_ribbon(aes(ymin = lower_base, ymax = upper_base), alpha = 0.05) +
+        scale_color_manual("",
+              breaks = c("Intervention", "No Intervention"),
+              values = c("green", "red")) +
+        xlab("Days") + 
+        ylab("Number of Cases") +
+        labs(title="Predicted Number of new Cases per Day")
+  return(p)
+}
+
+# Use this function to graph cumulative cases over days in simulation. Returns graph as object
+generate_graph_cumulative_cases <- function(reorganized_cases, reorganized_cases_baseline) {
+  n <- length(reorganized_cases[1])
+  avg_cases <- as.numeric(avg_cases_per_day(reorganized_cases))
+  avg_cases_base <- as.numeric(avg_cases_per_day(reorganized_cases_baseline))
+  
+  cumulative_cases <- as.numeric(calculate_cumulative_cases(avg_cases))
+  cumulative_cases_base <- as.numeric(calculate_cumulative_cases(avg_cases_base))
+  
+  x <- 1:days
+  df <- data.frame(x, cumulative_cases, cumulative_cases_base)
+  
+  p <- ggplot(data=df, aes(x=x)) +
+    geom_line(aes(y = cumulative_cases, colour="Intervention")) +
+    geom_point(aes(x=x, y=cumulative_cases, colour="Intervention")) +
+    geom_line(aes(y = cumulative_cases_base, colour="No Intervention")) +
+    geom_point(aes(x=x, y=cumulative_cases_base, colour="No Intervention")) +
+    scale_color_manual("",
+            breaks = c("Intervention", "No Intervention"),
+            values = c("green", "red")) +
+    xlab("Days") + 
+    ylab("Total Cases") +
+    labs(title="Predicted Number of Cumulative Cases")
+  return(p)
 }
 
 # Run simulation for 40 repetitions
 cases_per_day_multiple_simulations <- run_simulation_repeated(40, initial_state, testing, no_testing, semester)
+cases_per_day_multiple_simulations_baseline <- run_simulation_repeated(40, initial_state, testing_baseline, no_testing_baseline, semester)
 
 # Calculate case projects per day across all 40 simulations
 total_cases <- calculate_cases_multiple_simulations(40, cases_per_day_multiple_simulations)
+total_cases_baseline <- calculate_cases_multiple_simulations(40, cases_per_day_multiple_simulations_baseline)
 
 # Reorganize case projection output for easier statistical analysis
 reorganized_cases <- reorganize_total_cases(40, total_cases)
+reorganized_cases_baseline <- reorganize_total_cases(40, total_cases_baseline)
 
 # Generate projection graph with confidence intervals
-generate_graph(reorganized_cases)
+cases_per_day_graph <- generate_graph_cases_per_day(reorganized_cases, reorganized_cases_baseline)
+cumulative_cases_graph <- generate_graph_cumulative_cases(reorganized_cases, reorganized_cases_baseline)
+
+print(cases_per_day_graph)
+print(cumulative_cases_graph)
 ```
