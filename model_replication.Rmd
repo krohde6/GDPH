@@ -122,6 +122,15 @@ Below is the R code for defining the initial values and constants of the system.
 Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
 
 ```{r}
+# Dependencies
+library(hash)
+library(deSolve)
+library(scatterplot3d)
+library(lubridate)
+library(ggplot2)
+```
+
+```{r}
 # Download data from GDPH website
 temp_file <- tempfile()
 download.file("https://ga-covid19.ondemand.sas.com/docs/ga_covid_data.zip", temp_file)
@@ -149,8 +158,6 @@ attach(county_data)
 ```
 
 ```{r}
-library(hash)
-
 # Hard coded all counties in Georgia
 counties <- hash(
                   keys=c(
@@ -180,7 +187,7 @@ counties <- hash(
 
 # COLIN: this function can be called with all of the user inputted data and returns a dictionary for that school
 # Use this function to get county hash with user inputted data (pcr should be a boolean true if pcr selected, false otherwise)
-generate_school <- function(county, days, masking, student_pop, faculty_pop, student_vax, faculty_vax, testing, pcr) {
+generate_school <- function(county, days, masking, student_pop, faculty_pop, student_vax, faculty_vax, testing, pcr, elem) {
   school <- hash()
   school["county"]           <- county
   school["days"]             <- days
@@ -191,6 +198,7 @@ generate_school <- function(county, days, masking, student_pop, faculty_pop, stu
   school["faculty_vax"]      <- faculty_vax
   school["testing"]          <- testing
   school["pcr"]              <- pcr
+  school["elem"]             <- elem
   return(school)
 }
 ```
@@ -229,6 +237,7 @@ student_pop <- 1000
 faculty_pop <- 25
 VR_s <- 0.15
 VR_f <- 0.2
+elem <- FALSE
 
 students_vaccinated <- student_pop * VR_s
 faculty_vaccinated <- faculty_pop * VR_f
@@ -245,7 +254,7 @@ county_data$I_av <- 0.5 * initial_infected_asymptomatic(county_data)
 county_data$I_an <- 0.5 * initial_infected_asymptomatic(county_data)
 county_data$R_u <- initial_recovered_unknown(county_data)
 
-school <- generate_school(toString(county), days, masking, student_pop, faculty_pop, VR_s, VR_f, testing, pcr)
+school <- generate_school(toString(county), days, masking, student_pop, faculty_pop, VR_s, VR_f, testing, pcr, elem)
 single_county_data <- county_data[values(counties, key=c(county)),]
 ```
 
@@ -306,6 +315,13 @@ if (values(school, key=c("pcr"))) {
 } else {
   T_pcr <- 0
   T_rap <- values(school, key=c("testing"))
+}
+
+# Here we determine if the school is an elementary school based on user input. If it is, assign the elementary school multiplier to 0.73 to account for historically less transmission in elementary schools
+if (values(school, key=c("elem"))) {
+  elementary_multiplier <- 0.73
+} else {
+  elementary_multiplier <- 1
 }
 
 # Initial built in parameters for testing and no testing days
@@ -400,12 +416,6 @@ RU_dot <- function(gamma, I_av, I_an, I_sv, I_sn, TFN_a, TFN_s) {
 }
 ```
 
-```{r, results='hide'}
-library(deSolve)
-library(scatterplot3d)
-library(lubridate)
-```
-
 ```{r}
 # Define generic differential update function
 
@@ -471,8 +481,6 @@ run_simulation_repeated <- function(j, state, testing, no_testing, semester) {
 
 The following code block is primarily used for statistical analysis of the results from running the simulation $i$ number of times. By default, $i = 40$. To change the total number of iterations, please modify the $40$ found in the function call on the last line of the previous code block.
 ```{r}
-library(ggplot2)
-
 # Function to determine number of cases for each day. Returns list of length days where each element is the cases for that day
 calculate_cases <- function(states) {
   cases_per_day <- list()
@@ -485,9 +493,9 @@ calculate_cases <- function(states) {
     infection_attack_rate <- as.numeric((previous_state["S_0_v"] + previous_state["S_0_n"])) - current_susceptibility
     decimal_of_IAR <- (infection_attack_rate * n) - floor(infection_attack_rate * n)
     if (decimal_of_IAR >= 0.7) {
-      cases_per_day[i] <- ceiling(infection_attack_rate * n)
+      cases_per_day[i] <- ceiling(infection_attack_rate * n) * elementary_multiplier
     } else {
-      cases_per_day[i] <- floor(infection_attack_rate * n)
+      cases_per_day[i] <- floor(infection_attack_rate * n) * elementary_multiplier
     }
     cases_per_day[i] <- as.numeric(cases_per_day[i])
   }
