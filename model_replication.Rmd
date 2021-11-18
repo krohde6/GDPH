@@ -230,13 +230,13 @@ initial_recovered_unknown <- function(county_data) {
 
 county <- "Fulton"
 days <- 14
-masking <- 0.5
+masking <- 0.0
 testing <- 0.0
 pcr <- TRUE
-student_pop <- 1000
-faculty_pop <- 25
-VR_s <- 0.15
-VR_f <- 0.2
+student_pop <- 1400
+faculty_pop <- 14
+VR_s <- 0.0
+VR_f <- 0.0
 elem <- FALSE
 
 students_vaccinated <- student_pop * VR_s
@@ -248,10 +248,10 @@ percent_school_vaccinated <- (students_vaccinated + faculty_vaccinated) / total_
 county_data$S_0 <- initial_susceptibility(county_data)
 county_data$S_0_v <- (county_data$S_0)*percent_school_vaccinated
 county_data$S_0_n <- (county_data$S_0)*(1 - percent_school_vaccinated)
-county_data$I_sv <- 0.5 * initial_infected_symptomatic(county_data)
-county_data$I_sn <- 0.5 * initial_infected_symptomatic(county_data)
-county_data$I_av <- 0.5 * initial_infected_asymptomatic(county_data)
-county_data$I_an <- 0.5 * initial_infected_asymptomatic(county_data)
+county_data$I_sv <- (percent_school_vaccinated) * initial_infected_symptomatic(county_data)
+county_data$I_sn <- (1 - percent_school_vaccinated) * initial_infected_symptomatic(county_data)
+county_data$I_av <- (percent_school_vaccinated) * initial_infected_asymptomatic(county_data)
+county_data$I_an <- (1 - percent_school_vaccinated) * initial_infected_asymptomatic(county_data)
 county_data$R_u <- initial_recovered_unknown(county_data)
 
 school <- generate_school(toString(county), days, masking, student_pop, faculty_pop, VR_s, VR_f, testing, pcr, elem)
@@ -261,10 +261,10 @@ single_county_data <- county_data[values(counties, key=c(county)),]
 ```{r}
 # Initial built-in parameters
 # The 40 found in the beta initialization signifies the simulation will run 40 times. If you would like to run it for a different number of iterations, change the values here.
-b_1 = runif(40, 0.051, 0.068)          # transmission rate due to contact between susceptible vaccinated and infected asymptomatic patient
-b_2 = runif(40, 0.102, 0.136)          # transmission rate due to contact between susceptible vaccinated and infected symptomatic patient
-b_3 = runif(40, 0.150, 0.200)          # transmission rate due to contact between susceptible not vaccinated and infected asymptomatic patient
-b_4 = runif(40, 0.300, 0.400)          # transmission rate due to contact between susceptible not vaccinated and infected symptomatic patient
+b_1 = runif(10, 0.051, 0.068)          # transmission rate due to contact between susceptible vaccinated and infected asymptomatic patient
+b_2 = runif(10, 0.102, 0.136)          # transmission rate due to contact between susceptible vaccinated and infected symptomatic patient
+b_3 = runif(10, 0.150, 0.200)          # transmission rate due to contact between susceptible not vaccinated and infected asymptomatic patient
+b_4 = runif(10, 0.300, 0.400)          # transmission rate due to contact between susceptible not vaccinated and infected symptomatic patient
 gamma = 0.1        # rate of recovery for an infected individual
 p0 = 0.7           # proportion of infections that are symptomatic
 c_a = 1            # isolation compliance asymptomatic infected + tested patients
@@ -339,6 +339,9 @@ no_testing_baseline <- c(b_1 = b_1[1], b_2 = b_2[1], b_3 = b_3[1], b_4 = b_4[1],
 
 # Initial state of the system (no intervention strategies)
 initial_state_baseline <- c(S_0_v = 0, S_0_n = S_0_n + S_0_v, I_av = 0, I_an = I_an + I_av, I_sv = 0, I_sn = I_sn + I_sv, TFN_a = TFN_a, TFN_s = TFN_s, TISO_an = TISO_an, TISO_sn = TISO_sn, TISO_ap = TISO_ap, TISO_sp = TISO_sp, RC = R_c, RU = R_u)
+
+print(initial_state)
+print(initial_state_baseline)
 ```
 
 
@@ -491,7 +494,7 @@ calculate_cases <- function(states) {
     
     current_susceptibility <- as.numeric(current_state["S_0_v"] + current_state["S_0_n"])
     infection_attack_rate <- as.numeric((previous_state["S_0_v"] + previous_state["S_0_n"])) - current_susceptibility
-    decimal_of_IAR <- (infection_attack_rate * n) - floor(infection_attack_rate * n)
+    decimal_of_IAR <- as.numeric((infection_attack_rate * n) - floor(infection_attack_rate * n))
     if (decimal_of_IAR >= 0.7) {
       cases_per_day[i] <- ceiling(infection_attack_rate * n) * elementary_multiplier
     } else {
@@ -670,20 +673,20 @@ generate_graph_cumulative_cases <- function(cumulative_cases, cumulative_cases_b
 }
 
 # Run simulation for 40 repetitions
-cases_per_day_multiple_simulations <- run_simulation_repeated(40, initial_state, testing, no_testing, semester)
-cases_per_day_multiple_simulations_baseline <- run_simulation_repeated(40, initial_state_baseline, testing_baseline, no_testing_baseline, semester)
+cases_per_day_multiple_simulations <- run_simulation_repeated(10, initial_state, testing, no_testing, semester)
+cases_per_day_multiple_simulations_baseline <- run_simulation_repeated(10, initial_state_baseline, testing_baseline, no_testing_baseline, semester)
 
 # Calculate case projects per day across all 40 simulations
-total_cases <- calculate_cases_multiple_simulations(40, cases_per_day_multiple_simulations)
-total_cases_baseline <- calculate_cases_multiple_simulations(40, cases_per_day_multiple_simulations_baseline)
+total_cases <- calculate_cases_multiple_simulations(10, cases_per_day_multiple_simulations)
+total_cases_baseline <- calculate_cases_multiple_simulations(10, cases_per_day_multiple_simulations_baseline)
 
 # Reorganize case projection output for easier statistical analysis
-reorganized_cases <- reorganize_total_cases(40, total_cases)
-reorganized_cases_baseline <- reorganize_total_cases(40, total_cases_baseline)
+reorganized_cases <- reorganize_total_cases(10, total_cases)
+reorganized_cases_baseline <- reorganize_total_cases(10, total_cases_baseline)
 
 # Reorganize case projection output for easier statistical analysis (cumulative cases)
-cumulative_cases <- reorganize_cumulative_cases(40, total_cases)
-cumulative_cases_baseline <- reorganize_cumulative_cases(40, total_cases_baseline)
+cumulative_cases <- reorganize_cumulative_cases(10, total_cases)
+cumulative_cases_baseline <- reorganize_cumulative_cases(10, total_cases_baseline)
 
 # Generate projection graph with confidence intervals
 cases_per_day_graph <- generate_graph_cases_per_day(reorganized_cases, reorganized_cases_baseline)
