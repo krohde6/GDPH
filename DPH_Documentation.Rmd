@@ -341,17 +341,15 @@ Because it is essential that the population remains a closed system, and that th
 
 
 ```{r}
-# This is where we obtain all values from the user inputted data and call generate_school(). it should look something like this
-# just replace the hard coded values with the values provided by the user
-county <- "Fulton"
+county <- "Henry"
 days <- 14
 masking <- 0.5
-student_pop <- 500
-faculty_pop <- 50
-VR_s <- 0
-VR_f <- 0
 testing <- 0.5
 pcr <- TRUE
+student_pop <- 648
+faculty_pop <- 43
+VR_s <- 0.0
+VR_f <- 0.0
 
 students_vaccinated <- student_pop * VR_s
 faculty_vaccinated <- faculty_pop * VR_f
@@ -362,12 +360,11 @@ percent_school_vaccinated <- (students_vaccinated + faculty_vaccinated) / total_
 county_data$S_0 <- initial_susceptibility(county_data)
 county_data$S_0_v <- (county_data$S_0)*percent_school_vaccinated
 county_data$S_0_n <- (county_data$S_0)*(1 - percent_school_vaccinated)
-county_data$I_sv <- 0.5 * initial_infected_symptomatic(county_data)
-county_data$I_sn <- 0.5 * initial_infected_symptomatic(county_data)
-county_data$I_av <- 0.5 * initial_infected_asymptomatic(county_data)
-county_data$I_an <- 0.5 * initial_infected_asymptomatic(county_data)
+county_data$I_sv <- (percent_school_vaccinated) * initial_infected_symptomatic(county_data)
+county_data$I_sn <- (1 - percent_school_vaccinated) * initial_infected_symptomatic(county_data)
+county_data$I_av <- (percent_school_vaccinated) * initial_infected_asymptomatic(county_data)
+county_data$I_an <- (1 - percent_school_vaccinated) * initial_infected_asymptomatic(county_data)
 county_data$R_u <- initial_recovered_unknown(county_data)
-county_data$total <- county_data$S_0_v + county_data$S_0_n + county_data$I_sv + county_data$I_av + county_data$I_sn + county_data$I_an + county_data$R_u
 
 school <- generate_school(toString(county), days, masking, student_pop, faculty_pop, VR_s, VR_f, testing, pcr)
 single_county_data <- county_data[values(counties, key=c(county)),]
@@ -496,11 +493,15 @@ TISO_an = 0     # initial population tested with infection, not in isolation, as
 TISO_ap = 0     # initial population tested with infection, in isolation, asymptomatic 
 TISO_sn = 0     # initial population tested with infection, not in isolation, symptomatic
 TISO_sp = 0     # initial population tested with infection, in isolation, symptomatic
+
 n = values(school, key=c("student_pop")) + values(school, key=c("faculty_pop"))       # school population
+
 # Days in simulation
 days <- values(school, key=c("days"))
+
 # Sequence for semester
 semester <- seq(1, days, by=1)
+
 # Here we determine if we are pcr testing based on user input, if we are, assign pcr testing percentage to user inputted testing percentage. else, assign to rapid testing percentage
 if (values(school, key=c("pcr"))) {
   T_pcr <- values(school, key=c("testing"))
@@ -509,11 +510,19 @@ if (values(school, key=c("pcr"))) {
   T_pcr <- 0
   T_rap <- values(school, key=c("testing"))
 }
+
 # Initial built in parameters for testing and no testing days
 testing <- c(b_1 = b_1[1], b_2 = b_2[1], b_3 = b_3[1], b_4 = b_4[1], p0 = p0, c_a = c_a, c_s = c_s, MC = values(school, key=c("masking")), T_pcr = T_pcr, T_rap = T_rap, gamma = gamma, FNpcr_a = FNpcr_a, FNpcr_s = FNpcr_s, FNrap_a = FNrap_a, FNrap_s = FNrap_s)
+
 no_testing <- c(b_1 = b_1[1], b_2 = b_2[1], b_3 = b_3[1], b_4 = b_4[1], p0 = p0, c_a = c_a, c_s = c_s, MC = values(school, key=c("masking")), T_pcr = 0, T_rap = 0, gamma = gamma, FNpcr_a = FNpcr_a, FNpcr_s = FNpcr_s, FNrap_a = FNrap_a, FNrap_s = FNrap_s)
+
 # Initial state of the system
 initial_state <- c(S_0_v = S_0_v, S_0_n = S_0_n, I_av = I_av, I_an = I_an, I_sv = I_sv, I_sn = I_sn, TFN_a = TFN_a, TFN_s = TFN_s, TISO_an = TISO_an, TISO_sn = TISO_sn, TISO_ap = TISO_ap, TISO_sp = TISO_sp, RC = R_c, RU = R_u)
+
+# Initial built in parameters for testing and no testing days (no intervention strategies)
+testing_baseline <- c(b_1 = b_1[1], b_2 = b_2[1], b_3 = b_3[1], b_4 = b_4[1], p0 = p0, c_a = c_a, c_s = c_s, MC.masking = 0, T_pcr = 0, T_rap = 0, gamma = gamma, FNpcr_a = FNpcr_a, FNpcr_s = FNpcr_s, FNrap_a = FNrap_a, FNrap_s = FNrap_s)
+
+no_testing_baseline <- c(b_1 = b_1[1], b_2 = b_2[1], b_3 = b_3[1], b_4 = b_4[1], p0 = p0, c_a = c_a, c_s = c_s, MC.masking = 0, T_pcr = 0, T_rap = 0, gamma = gamma, FNpcr_a = FNpcr_a, FNpcr_s = FNpcr_s, FNrap_a = FNrap_a, FNrap_s = FNrap_s)
 ```
 
 ## Creating Functions to Define the State Transition Differential Equations
@@ -687,7 +696,8 @@ run_simulation_repeated <- function(j, state, testing, no_testing, semester) {
 
 The following code block is primarily used for statistical analysis of the results from running the simulation $i$ number of times. By default, $i = 40$. To change the total number of iterations, please modify the $40$ found in the function call on the last line of the previous code block.
 ```{r}
-library(plotrix)
+library(ggplot2)
+
 # Function to determine number of cases for each day. Returns list of length days where each element is the cases for that day
 calculate_cases <- function(states) {
   cases_per_day <- list()
@@ -708,6 +718,7 @@ calculate_cases <- function(states) {
   }
   return(cases_per_day)
 }
+
 # Function to determine cumulative cases over the simulation duration. Returns list of length days where each element is the total cases since the start of the simulation
 calculate_cumulative_cases <- function(cases_per_day) {
   cumulative_cases <- list()
@@ -718,6 +729,7 @@ calculate_cumulative_cases <- function(cases_per_day) {
   }
   return(cumulative_cases)
 }
+
 # Use this function to get cases per day for multiple simulation runs
 calculate_cases_multiple_simulations <- function(j, results) {
   total_cases <- list()
@@ -727,6 +739,7 @@ calculate_cases_multiple_simulations <- function(j, results) {
   }
   return(total_cases)
 }
+
 # Function converts total_cases to a list of list. Outer list is number of cases for day i within each simulation. Inner list is of length number of simulations
 reorganize_total_cases <- function(n, total_cases) {
   reorganized_cases <- list()
@@ -739,6 +752,7 @@ reorganize_total_cases <- function(n, total_cases) {
   }
   return(reorganized_cases)
 }
+
 # Get average for cases per day
 avg_cases_per_day <- function(reorganized_cases) {
   day_avgs <- list()
@@ -754,6 +768,7 @@ avg_cases_per_day <- function(reorganized_cases) {
   }
   return(day_avgs)
 }
+
 # Get standard deviation for cases per day
 st_dev_cases_per_day <- function(reorganized_cases) {
   st_devs <- list()
@@ -762,6 +777,7 @@ st_dev_cases_per_day <- function(reorganized_cases) {
   }
   return(st_devs)
 }
+
 # Get margins for confidence intervals for cases per day
 margins_per_day <- function(reorganized_cases) {
   n <- length(reorganized_cases[[1]])
@@ -772,8 +788,9 @@ margins_per_day <- function(reorganized_cases) {
   }
   return(margins)
 }
-# Use this function to graph average cases per day over days in simulation
-generate_graph <- function(reorganized_cases) {
+
+# Use this function to graph average cases per day over days in simulation. Returns graph as object
+generate_graph_cases_per_day <- function(reorganized_cases, reorganized_cases_baseline) {
   n <- length(reorganized_cases[1])
   avgs <- avg_cases_per_day(reorganized_cases)
   st_devs <- st_dev_cases_per_day(reorganized_cases)
@@ -781,24 +798,100 @@ generate_graph <- function(reorganized_cases) {
   upper <- as.numeric(avgs) - as.numeric(margins)
   lower <- as.numeric(avgs) + as.numeric(margins)
   
+  avgs_base <- avg_cases_per_day(reorganized_cases_baseline)
+  st_devs_base <- st_dev_cases_per_day(reorganized_cases_baseline)
+  margins_base <- margins_per_day(reorganized_cases_baseline)
+  upper_base <- as.numeric(avgs_base) - as.numeric(margins_base)
+  lower_base <- as.numeric(avgs_base) + as.numeric(margins_base)
+  
   x <- 1:days
   y <- as.numeric(avg_cases_per_day(reorganized_cases))
-  data <- data.frame(x, y, lower, upper)
+  y_base <- as.numeric(avg_cases_per_day(reorganized_cases_baseline))
   
-  plotCI(x = data$x,
-         y = data$y,
-         li = data$lower,
-         ui = data$upper)
-  lines(x, y)
+  data <- data.frame(x, y, lower, upper)
+  data_base <- data.frame(x, y_base, lower_base, upper_base)
+  df <- data.frame(data, data_base)
+  
+  p <- ggplot(data = df, aes(x = x)) +
+        geom_line(aes(y = y, colour="Intervention")) +
+        geom_point(aes(x=x, y=y, colour="Intervention")) +
+        geom_ribbon(aes(ymin = lower, ymax = upper), alpha = 0.05) +
+        geom_line(aes(y = y_base, colour="No Intervention")) +
+        geom_point(aes(x=x, y=y_base, colour="No Intervention")) +
+        geom_ribbon(aes(ymin = lower_base, ymax = upper_base), alpha = 0.05) +
+        scale_color_manual("",
+              breaks = c("Intervention", "No Intervention"),
+              values = c("green", "red")) +
+        xlab("Days") + 
+        ylab("Number of Cases") +
+        labs(title="Predicted Number of new Cases per Day")
+  return(p)
 }
+
+# Use this function to graph cumulative cases over days in simulation. Returns graph as object
+generate_graph_cumulative_cases <- function(reorganized_cases, reorganized_cases_baseline) {
+  n <- length(reorganized_cases[1])
+  avg_cases <- as.numeric(avg_cases_per_day(reorganized_cases))
+  avg_cases_base <- as.numeric(avg_cases_per_day(reorganized_cases_baseline))
+  
+  cumulative_cases <- as.numeric(calculate_cumulative_cases(avg_cases))
+  cumulative_cases_base <- as.numeric(calculate_cumulative_cases(avg_cases_base))
+  
+  x <- 1:days
+  df <- data.frame(x, cumulative_cases, cumulative_cases_base)
+  
+  p <- ggplot(data=df, aes(x=x)) +
+    geom_line(aes(y = cumulative_cases, colour="Intervention")) +
+    geom_point(aes(x=x, y=cumulative_cases, colour="Intervention")) +
+    geom_line(aes(y = cumulative_cases_base, colour="No Intervention")) +
+    geom_point(aes(x=x, y=cumulative_cases_base, colour="No Intervention")) +
+    scale_color_manual("",
+            breaks = c("Intervention", "No Intervention"),
+            values = c("green", "red")) +
+    xlab("Days") + 
+    ylab("Total Cases") +
+    labs(title="Predicted Number of Cumulative Cases")
+  return(p)
+}
+
 # Run simulation for 40 repetitions
 cases_per_day_multiple_simulations <- run_simulation_repeated(40, initial_state, testing, no_testing, semester)
+cases_per_day_multiple_simulations_baseline <- run_simulation_repeated(40, initial_state, testing_baseline, no_testing_baseline, semester)
+
 # Calculate case projects per day across all 40 simulations
 total_cases <- calculate_cases_multiple_simulations(40, cases_per_day_multiple_simulations)
+total_cases_baseline <- calculate_cases_multiple_simulations(40, cases_per_day_multiple_simulations_baseline)
+
 # Reorganize case projection output for easier statistical analysis
 reorganized_cases <- reorganize_total_cases(40, total_cases)
+reorganized_cases_baseline <- reorganize_total_cases(40, total_cases_baseline)
+
 # Generate projection graph with confidence intervals
-generate_graph(reorganized_cases)
+cases_per_day_graph <- generate_graph_cases_per_day(reorganized_cases, reorganized_cases_baseline)
+cumulative_cases_graph <- generate_graph_cumulative_cases(reorganized_cases, reorganized_cases_baseline)
+
+print(cases_per_day_graph)
+print(cumulative_cases_graph)
+
+#Mean Absolute Percent Error for School-Level Validation
+library(MLmetrics)
+mape_calculation <- function(total_cases) {
+  y_predict <- list()
+  y_actual <-list()
+  total_population = student_pop + faculty_pop 
+  actual_cases = 1
+  for (i in 1:40) {
+    y_predict[[length(y_predict)+1]] <- total_population - sum(as.numeric(unlist(total_cases[i])))
+    y_actual[[length(y_actual)+1]] <- total_population - actual_cases
+  }
+  #print(y_actual)
+  #print(y_pred)
+  #percent_error = mean(abs((y_true-y_pred)/y_true)) * 100
+  percent_error = MAPE(unlist(y_predict), unlist(y_actual))
+  return(percent_error)
+}
+
+mape_calculation(total_cases)
 ```
 
 ## County-Level Validation (for Internal Purposes Only)
@@ -864,13 +957,24 @@ generate_predicted_county_cases <- function(county_data) {
   for (i in 1:nrow(county_data)) {
     row <- county_data[i,]
     initial_state <- c(S_0_v = row$S_0_v, S_0_n = row$S_0_n, I_av = row$I_av,  I_an = row$I_an, I_sv = row$I_sv, I_sn = row$I_sn, TFN_a = TFN_a, TFN_s = TFN_s, TISO_an = TISO_an, TISO_sn = TISO_sn, TISO_ap = TISO_ap, TISO_sp = TISO_sp, RC = R_c, RU = row$R_u)
-    baseline <- run_simulation(initial_state, testing, no_testing, semester)
-    two_week_state <- baseline[[14]]
-    final_susceptibility <- two_week_state["S_0_v"] + two_week_state["S_0_n"]
-    infection_attack_rate <- (row$S_0_v + row$S_0_n) - final_susceptibility
-    number_of_cases <- ceiling(infection_attack_rate * row$population)
-    standardized_number_of_cases <- ceiling((number_of_cases/row$population)*100000)
-    predicted_cases <- c(predicted_cases, standardized_number_of_cases)
+    baseline <- run_simulation_repeated(10, initial_state, testing, no_testing, semester)
+    cases <- c()
+    for (i in range(1:10)){
+      two_week_state <- baseline[[i]][[days]]
+      final_susceptibility <- two_week_state["S_0_v"] + two_week_state["S_0_n"]
+      infection_attack_rate <- (row$S_0_v + row$S_0_n) - final_susceptibility
+      number_of_cases <- ceiling(infection_attack_rate * row$population)
+      cases <- c(cases, number_of_cases)
+    }
+    avg_cases <- ceiling(mean(cases))
+    predicted_cases <- c(predicted_cases, number_of_cases)
+    #print(baseline)
+    #two_week_state <- baseline[[days]]
+    #final_susceptibility <- two_week_state["S_0_v"] + two_week_state["S_0_n"]
+    #infection_attack_rate <- (row$S_0_v + row$S_0_n) - final_susceptibility
+    #number_of_cases <- ceiling(infection_attack_rate * row$population)
+    #standardized_number_of_cases <- floor((number_of_cases/row$population)*100000)
+    #predicted_cases <- c(predicted_cases, number_of_cases)
   }
   return(predicted_cases)
 }
@@ -890,26 +994,34 @@ populate_predicted_county_cases<- function(list1, list2) {
 
 results <- populate_predicted_county_cases(keys(counties), generate_predicted_county_cases(county_data))
 
-observed_cases <- populate_predicted_county_cases(keys(counties), ceiling((county_data$X14.day.cases/county_data$population)*100000))
+observed_cases <- populate_predicted_county_cases(keys(counties), ceiling(county_data$X14.day.cases))
 
-
+library(MLmetrics)
 # calculating percent error 
 difference <- values(results) - values(observed_cases)
 abs_difference <- abs(values(observed_cases) - values(results))
-percent_error <- (abs_difference / values(results))*100
+percent_error_infected <- (abs_difference / values(observed_cases))*100
 
-validation_table <- matrix(data = c(values(results), values(observed_cases), difference, percent_error), ncol = 4)
+percent_error_not_infected <- abs(((county_data$population - values(observed_cases)) - (county_data$population - values(results)))/(county_data$population - values(observed_cases)))
+
+
+validation_table <- matrix(data = c(county_data$population, values(results), values(observed_cases), difference, percent_error_infected, percent_error_not_infected), ncol = 6)
 rownames(validation_table) <- c(keys(results))
-colnames(validation_table) <- c("predicted", "observed", "difference", "percent_error")
+colnames(validation_table) <- c("population", "predicted", "observed", "difference", "percent_error_infected", "percent_error_not_infected")
 validation_table <- as.data.frame(validation_table)
 attach(validation_table)
+validation_table
 
 no_error_counties <- validation_table[validation_table$difference == 0, ]
 
 error_counties <- validation_table[validation_table$difference != 0, ]
 
+no_error_counties
+error_counties
+
 mean(difference)
-mean(error_counties$percent_error)
+mean(error_counties$percent_error_infected)
+mean(error_counties$percent_error_not_infected)
 
 ggplot(data = validation_table, aes(x = validation_table$difference)) +
     geom_histogram(fill = 'steelblue', color = 'black') +
