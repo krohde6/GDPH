@@ -47,10 +47,10 @@ Below are the variable definitions
 
 |          Parameter         |                                             Description                                             |           Value          |
 |:--------------------------:|:---------------------------------------------------------------------------------------------------:|:------------------------:|
-|         $\beta_1$          | Transmission rate due to contact between susceptible, vaccinated and asymptomatic infected          |            0.068         |
-|         $\beta_2$          | Transmission rate due to contact between susceptible, vaccinated and symptomatic infected           |            0.136         |
-|         $\beta_3$          | Transmission rate due to contact between susceptible, not vaccinated and asymptomatic infected      |            0.2           |
-|         $\beta_4$          | Transmission rate due to contact between susceptible, not vaccinated and symptomatic infected       |            0.4           |
+|         $\beta_1$          | Transmission rate due to contact between susceptible, vaccinated and asymptomatic infected          |      (0.051, 0.068)      |
+|         $\beta_2$          | Transmission rate due to contact between susceptible, vaccinated and symptomatic infected           |      (0.102, 0.136)      |
+|         $\beta_3$          | Transmission rate due to contact between susceptible, not vaccinated and asymptomatic infected      |      (0.150, 0.200)      |
+|         $\beta_4$          | Transmission rate due to contact between susceptible, not vaccinated and symptomatic infected       |      (0.300, 0.400)      |
 |          $\gamma$          |                              Rate of recovery of an infected individual                             |            0.1           |
 |            $p_0$           |                            Proportion of infections that are symptomatic                            |            0.7           |
 |         $C_a$,$C_s$        |        Isolation compliance rate for asymptomatic/symptomatic infected and tested individuals       |            1, 1          |
@@ -128,11 +128,29 @@ $$
 
 # Code for the Model
 
+## Loading the Required Libraries
+
+Before any code is run, we want to load R with the required libraries for the simulation. The following libraries are required, and their uses will be explained throughout this document.
+
+```{r}
+# Dependencies
+library(hash)
+library(deSolve)
+library(scatterplot3d)
+library(lubridate)
+library(ggplot2)
+library(MLmetrics)
+```
+
 ## Downloading the Data from the GDPH Website 
 
-The following chunk of code is used to download the most recent county case data from the GDPH website. Because the data from the GDPH website downloads as a zip file, a temporary file must first be created (line 139). We can then download the data from a specified URL (GDPH website) to this temporary file (line 140). The file is then unzipped and read into R using the read.csv() function and the unz() function (line 141). It is important to note that we only want to use the data from the "county_cases.csv" file which is located within the downloaded zip file (which is why we need to specify this specific file when using the unz() function). We then unlink the temp file (line 142). 
+The following chunk of code is used to download the most recent county case data from the GDPH website. Because the data from the GDPH website downloads as a zip file, a temporary file must first be created (line 139). We can then download the data from a specified URL (GDPH website) to this temporary file. The file is then unzipped and read into R using the `read.csv()` function and the `unz()` function. It is important to note that we only want to use the data from the "county_cases.csv" file which is located within the downloaded zip file (which is why we need to specify this specific file when using the `unz()` function). We then unlink the temp file. 
 
-Once the data from the "county_cases.csv" file is read into R, we only want to consider certain columns of data within this file. The columns of importance are county_name, cases, population, and X14.day.cases. Lines 147 - 157 removes the unused columns and stores it in a new variable called "county_data". This variable will serve as the starting point for creating the initial states for each county and is used/seen multiple times throughout the code. There are also 2 rows of data that are not associated with a particular county, specified as Non-GA Resident/Unknown State (row 108) and Unknown (row 146) which is why we must remove these two rows from our stored variable (line 158). Additionally, we realize that the number of cases seen on a two-week period are known to be under-reported by a factor between 3.4 to 4.7. For this reason, we reset the "X14.day.cases" variable to the number of cases multiplied by a value between 3.4 - 4.7 chosen at random. The randomness is accounted for by the "runif" function. The ceiling of this value is then taken to ensure a whole number of cases as opposed to fractional cases. Line 158 attaches the column names to the variable so we can refer to them directly (cases as opposed to county_data$cases). 
+Once the data from the "county_cases.csv" file is read into R, we only want to consider certain columns of data within this file. The columns of importance are county_name, cases, population, and X14.day.cases. Lines 147 - 157 removes the unused columns and stores it in a new variable called "county_data". This variable will serve as the starting point for creating the initial states for each county and is used/seen multiple times throughout the code. There are also 2 rows of data that are not associated with a particular county, specified as Non-GA Resident/Unknown State (row 108) and Unknown (row 146) which is why we must remove these two rows from our stored variable. Additionally, we realize that the number of cases seen on a two-week period are known to be under-reported by a factor between 3.4 to 4.7. For this reason, we reset the "X14.day.cases" variable to the number of cases multiplied by a value between 3.4 - 4.7 chosen at random. The randomness is accounted for by the `runif()` function. The ceiling of this value is then taken to ensure a whole number of cases as opposed to fractional cases. We then attach the column names to the variable so we can refer to them directly (cases as opposed to county_data$cases).
+
+The `runif()` function has 3 inputs in this case. The `1` (first input) indicates we want one value from a random distribution with parameters `[a, b]` (2nd and 3rd arguments).
+
+`attach(county_data)` simply allows us to use the column names from the csv file as variables in R.
 
 ```{r}
 # Download data from GDPH website
@@ -140,6 +158,7 @@ temp_file <- tempfile()
 download.file("https://ga-covid19.ondemand.sas.com/docs/ga_covid_data.zip", temp_file)
 data <- read.csv(unz(temp_file, "county_cases.csv"))
 unlink(temp_file)
+
 # Remove unused columns
 county_data <- subset(data, select = -c(county_id, 
                                  State.FIPS.code,
@@ -153,8 +172,10 @@ county_data <- subset(data, select = -c(county_id,
                                  antigen_cases,
                                  probable_deaths))
 county_data <- county_data[-c(108, 146),]
+
 # Account for 1 in 4 cases being reported to DPH
 county_data$X14.day.cases <- ceiling(county_data$X14.day.cases * runif(1, min = 3.4, max = 4.7))
+
 attach(county_data)
 ```
 
@@ -162,11 +183,35 @@ attach(county_data)
 
 The following block of code creates a dictionary called "counties" which stores each of the county names as the keys and a number 1 - 159 as the values. 
 
-[KYLE WRITE ABOUT PURPOSE OF THE COUNITES DICTIONARY]
+The purpose of this dictionary will be made apparent later in the code. The main idea here is that we can only access the data `county_data` by integers, but what we really want is to access the data by county name. For example, if we wanted Gwinnett County's data, what we would like to do is `county_data["Gwinnett"]`, but R datasets cannot be accessed with Strings, so we need an integer corresponding to Gwinnett. With the `counties` dictionary defined below, we can have a county name and the dictionary will give us an integer to get the data from `county_data` on our desired County.
+
+## A Function to Store User Inputted Data for a Specific School
+
+The following function `generate_school()` of code creates a function that can be called for a specific school. The input parameters of the function align with the values that a decision-maker is able to input into the simulation, such parameters are defined as follows:
+
+**county (string):** county that user wants to view information for
+
+**days (integer):** number of days that the user wants to run the simulation for
+
+**masking (decimal / numeric):** the proportion of the school population that is wearing masks
+
+**student_pop (integer):** the total number of students attending school in-person
+
+**faculty_pop (integer):** the total number of faculty and staff attending school in-person
+
+**student_vax (decimal):** the proportion of the student population that are fully vaccinated 
+
+**faculty_vax (decimal):** the proportion of the faculty/staff population that are fully vaccinated
+
+**testing (decimal):** the proportion of the school population that are regularly participating in surveillance testing 
+
+**pcr (Boolean):** a TRUE/FALSE value that specifies what type of surveillance testing a school is participating in (TRUE if PCR testing, FALSE if Rapid Antigen Testing)
+
+**elem (Boolean):** a TRUE/FALSE value indicating whether or not the user has indicated their school is an elementary school. This is important as elementary schools historically experience fewer cases, so we have a multiplier to decreases simulated cases later on.
+
+Ultimately, this function is called on the back-end to store the values in a dictionary which are inputted by the user on the front-end interface. We can see a call to this function in the block of code within the `Obtaining the Data for the User's Specified County & Using Their Preferences` section of this manual, which allows to obtain the predicted number of cases based on the user's preferences. 
 
 ```{r}
-library(hash)
-
 # Hard coded all counties in Georgia
 counties <- hash(
                   keys=c(
@@ -193,36 +238,8 @@ counties <- hash(
                   ),
                   values=1:159
                 )
-```
 
-## A Function to Store User Inputted Data for a Specific School 
-
-The following block of code creates a function that can be called for a specific school. The input parameters of the function align with the values that a decision-maker is able to input into the simulation, such parameters are defined as follows:
-
-**county (string):** county that user wants to view information for
-
-**days (integer):** number of days that the user wants to run the simulation for
-
-**masking (decimal / numeric):** the proportion of the school population that is wearing masks (0 - 1 with 0.25 intervals)
-
-**student_pop (integer):** the total number of students attending school in-person
-
-**faculty_pop (integer):** the total number of faculty and staff attending school in-person
-
-**student_vax (decimal):** the proportion of the student population that are fully vaccinated 
-
-**faculty_vax (decimal):** the proportion of the faculty/staff population that are fully vaccinated
-
-**testing (decimal):** the proportion of the school population that are regularly participating in surveillance testing 
-
-**pcr (boolean):** a true/false value that specifies what type of surveillance testing a school is participating in (TRUE if PCR testing, FALSE if Rapid Antigen Testing)
-
-Ultimately, this function is called on the back-end to store the values in a dictionary which are inputted by the user on the front-end interface. We can see a call to this function in lines ____ - ____, which allows to obtain the predicted number of cases based on the user's preferences. 
-
-```{r}
-# COLIN: this function can be called with all of the user inputted data and returns a dictionary for that school
-# Use this function to get county hash with user inputted data (pcr should be a boolean true if pcr selected, false otherwise)
-generate_school <- function(county, days, masking, student_pop, faculty_pop, student_vax, faculty_vax, testing, pcr) {
+generate_school <- function(county, days, masking, student_pop, faculty_pop, student_vax, faculty_vax, testing, pcr, elem) {
   school <- hash()
   school["county"]           <- county
   school["days"]             <- days
@@ -233,6 +250,7 @@ generate_school <- function(county, days, masking, student_pop, faculty_pop, stu
   school["faculty_vax"]      <- faculty_vax
   school["testing"]          <- testing
   school["pcr"]              <- pcr
+  school["elem"]             <- elem
   return(school)
 }
 ```
@@ -243,50 +261,25 @@ The following set of functions are used to determine the initial states for each
 
 ### initial_susceptibility
 
-This function determines the proportion of the population that starts out in the susceptible state. It is important to note that at this stage, the susceptible state has not yet been split into the susceptible & vaccinated vs. susceptible & not vaccinated state. The function takes in a data set as the parameter (in our case, it will always be the "county_data" variable, but this will always have to be specified when being called). The equation to determine initial susceptibility takes the total population of a county, subtracts the number of total cases the county has experienced (as they have technically been infected and recovered already), and divides by the total county population to get the proportion. If the data passed into this function were to change their header names, modifications to this function would need to occur in order to reflect these changes. For example, if the data file changes the column header "population" to "county_population", the function's equation would need to change to: result <- (county_data\$county_population - county_data\$cases) / county_data\$county_population.
+This function determines the proportion of the population that starts out in the susceptible state. It is important to note that at this stage, the susceptible state has not yet been split into the susceptible & vaccinated vs. susceptible & not vaccinated state. The function takes in a data set as the parameter (in our case, it will always be the `county_data` variable, but this will always have to be specified when being called). The equation to determine initial susceptibility takes the total population of a county, subtracts the number of total cases the county has experienced (as they have technically been infected and recovered already), and divides by the total county population to get the proportion. If the data passed into this function were to change their header names, modifications to this function would need to occur in order to reflect these changes. For example, if the data file changes the column header "population" to `county_population`, the function's equation would need to change to: `result <- (county_data$county_population - county_data$cases) / county_data$county_population.`
 
 ### initial_infected_symptomatic
 
-This function determines the proportion of the population that starts out in the infected & symptomatic state. It is important to note that at this stage, the infected & symptomatic state has not yet been split into the infected & symptomatic & vaccinated vs. infected & symptomatic & not vaccinated state. The function takes in a data set as the parameter (in our case, it will always be the "county_data" variable, but this will always have to be specified when being called). The equation to determine initial infected & symptomatic takes the number of cases in the past 14 days (which are the people currently infected), divides by the total county population to get the proportion of the population, and then multiplies by the proportion of cases that are symptomatic (p0, which we have determined to be 0.7). If the data passed into this function were to change their header names, modifications to this function would need to occur in order to reflect these changes. For example, if the data file changes the column header "X14.day.cases" to "fourteen.day.cases", the function's equation would need to change to: result <- ((county_data\$fourteen.day.cases) / county_data\$population) * p0. Should the proportion of symptomatic cases change, this can be modified by changing the value of p0 at the top of the code block.
+This function determines the proportion of the population that starts out in the infected & symptomatic state. It is important to note that at this stage, the infected & symptomatic state has not yet been split into the infected & symptomatic & vaccinated vs. infected & symptomatic & not vaccinated state. The function takes in a data set as the parameter (in our case, it will always be the `county_data` variable, but this will always have to be specified when being called). The equation to determine initial infected & symptomatic takes the number of cases in the past 14 days (which are the people currently infected), divides by the total county population to get the proportion of the population, and then multiplies by the proportion of cases that are symptomatic ($p_0$, which we have determined to be 0.7). If the data passed into this function were to change their header names, modifications to this function would need to occur in order to reflect these changes. For example, if the data file changes the column header "X14.day.cases" to "fourteen.day.cases", the function's equation would need to change to: `result <- ((county_data$fourteen.day.cases) / county_data\population) * p0`. Should the proportion of symptomatic cases change, this can be modified by changing the value of $p_0$ at the top of the code block.
 
 ### initial_infected_asymptomatic
 
-This function determines the proportion of the population that starts out in the infected & asymptomatic state. It is important to note that at this stage, the infected & asymptomatic state has not yet been split into the infected & asymptomatic & vaccinated vs. infected & asymptomatic & not vaccinated state. The function takes in a data set as the parameter (in our case, it will always be the "county_data" variable, but this will always have to be specified when being called). The equation to determine initial infected & asymptomatic takes the number of cases in the past 14 days (which are the people currently infected), divides by the total county population to get the proportion of the population, and then multiplies by the proportion of cases that are asymptomatic (1 - p0, which we have determined to be 0.3 because 1 - 0.7 = 0.3). If the data passed into this function were to change their header names, modifications to this function would need to occur in order to reflect these changes. For example, if the data file changes the column header "X14.day.cases" to "fourteen.day.cases", the function's equation would need to change to: result <- ((county_data\$fourteen.day.cases) / county_data\$population) * (1 - p0).
+This function determines the proportion of the population that starts out in the infected & asymptomatic state. It is important to note that at this stage, the infected & asymptomatic state has not yet been split into the infected & asymptomatic & vaccinated vs. infected & asymptomatic & not vaccinated state. The function takes in a data set as the parameter (in our case, it will always be the `county_data` variable, but this will always have to be specified when being called). The equation to determine initial infected & asymptomatic takes the number of cases in the past 14 days (which are the people currently infected), divides by the total county population to get the proportion of the population, and then multiplies by the proportion of cases that are asymptomatic ($1 - p_0$, which we have determined to be 0.3 because $1 - 0.7 = 0.3$). If the data passed into this function were to change their header names, modifications to this function would need to occur in order to reflect these changes. For example, if the data file changes the column header "X14.day.cases" to "fourteen.day.cases", the function's equation would need to change to: `result <- ((county_data$fourteen.day.cases) / county_data$population) * (1 - p0)`.
 
 **Note: if the proportion of symptomatic cases changes in the initial_infected_symptomatic equation, the proportion of asymptomatic cases must also change to 1 - [new value] so that they sum to 1.**
 
 ### initial_recovered_unknown
 
-This function determines the proportion of the population that starts out in the recovered unknown state, which takes into account the people who have been infected and assumed recovered from the Covid-19 virus. The function takes in a data set as the parameter (in our case, it will always be the "county_data" variable, but this will always have to be specified when being called). The equation to determine initial recovered unknown takes the total number of cases that a county has had, subtracts the number of people that are currently infected (X14.day.cases), and divides by the total county population to get the proportion. If the data passed into this function were to change their header names, modifications to this function would need to occur in order to reflect these changes. For example, if the data file changes the column header "X14.day.cases" to "fourteen.day.cases", the function's equation would need to change to: result <- (county_data\$cases - county_data\$fourteen.day.cases) / county_data\$population.
-
-```{r}
-# Functions defining initial states for all counties
-# Need to change these functions to not hard-code the proportion of symptomatic vs. asymptomatic 
-
-p0 = 0.7  # proportion of infections that are symptomatic
-
-initial_susceptibility <- function(county_data) {
-  result <- (county_data$population - county_data$cases) / county_data$population
-  return(result)
-}
-initial_infected_symptomatic <- function(county_data) {
-  result <- ((county_data$X14.day.cases) / county_data$population) * p0
-  return(result)
-}
-initial_infected_asymptomatic <- function(county_data) {
-  result <- ((county_data$X14.day.cases) / county_data$population) * (1 - p0)
-  return(result)
-}
-initial_recovered_unknown <- function(county_data) {
-  result <- (county_data$cases - county_data$X14.day.cases) / county_data$population
-  return(result)
-}
-```
-
+This function determines the proportion of the population that starts out in the recovered unknown state, which takes into account the people who have been infected and assumed recovered from the Covid-19 virus. The function takes in a data set as the parameter (in our case, it will always be the `county_data` variable, but this will always have to be specified when being called). The equation to determine initial recovered unknown takes the total number of cases that a county has had, subtracts the number of people that are currently infected ("X14.day.cases"), and divides by the total county population to get the proportion. If the data passed into this function were to change their header names, modifications to this function would need to occur in order to reflect these changes. For example, if the data file changes the column header "X14.day.cases" to "fourteen.day.cases", the function's equation would need to change to: `result <- (county_data$cases - county_data$fourteen.day.cases) / county_data$population`.
 
 ## Obtaining the Data for the User's Specified County & Using Their Preferences
 
-This block of code is used to obtain all of the user-inputted data, and then uses this data to call on our previously defined function "generate_school()". 
+This block of code is used to obtain all of the user-inputted data, and then uses this data to call on our previously defined function `generate_school()`. 
 
 **county (string):** county that user wants to view information for
 
@@ -304,52 +297,72 @@ This block of code is used to obtain all of the user-inputted data, and then use
 
 **testing (decimal):** the proportion of the school population that are regularly participating in surveillance testing 
 
-**pcr (boolean):** a true/false value that specifies what type of surveillance testing a school is participating in (TRUE if PCR testing, FALSE if Rapid Antigen Testing)
+**pcr (Boolean):** a TRUE/FALSE value that specifies what type of surveillance testing a school is participating in (TRUE if PCR testing, FALSE if Rapid Antigen Testing)
 
-In order to scale the percentage of the total population that is vaccinated, while also taking into account the differences in percentage vaccinated between students and faculty/staff, some equations are necessary to apply these changes. First, we must obtain the number of students vaccinated and the number of faculty/staff vaccinated based on the user-inputted values for student population, student vaccination percentage, faculty/staff population, and faculty/staff vaccination percentage. This can be seen in the lines that calculate "students_vaccinated" and "faculty_vaccinated". Then, in order to calculate the total proportion of the total population that has been vaccinated, we have taken the total population (by adding student_pop + faculty_pop) and then obtained the total percent vaccinated in the school setting by taking the following equation:
+**elem (Boolean):** a TRUE/FALSE value indicating whether or not the user has indicated their school is an elementary school. This is important as elementary schools historically experience fewer cases, so we have a multiplier to decreases simulated cases later on.
 
-percent_school_vaccinated = (students_vaccinated + faculty_vaccinated) / total_school_population
+In order to scale the percentage of the total population that is vaccinated, while also taking into account the differences in percentage vaccinated between students and faculty/staff, some equations are necessary to apply these changes. First, we must obtain the number of students vaccinated and the number of faculty/staff vaccinated based on the user-inputted values for student population, student vaccination percentage, faculty/staff population, and faculty/staff vaccination percentage. This can be seen in the lines that calculate `students_vaccinated` and `faculty_vaccinated`. Then, in order to calculate the total proportion of the total population that has been vaccinated, we have taken the total population (by adding `student_pop + faculty_pop`) and then obtained the total percent vaccinated in the school setting by taking the following equation:
+
+`percent_school_vaccinated = (students_vaccinated + faculty_vaccinated) / total_school_population`
 
 These equations will allow us to scale the community data down to the school level while taking into account user inputs and school-specific conditions.
 
-Next, lines 333-343 is where we actually take the community data and scale it to the school level.
+Following the calculation for the percentage of the school that is vaccinated is where the community data is actually scaled to the school level.
 
-**county_data\$S_0 <- initial_susceptibility(county_data)**: calculates the initial proportion of the population for the specified county that starts in the susceptible state, this equation calls on the previously defined function "initial_susceptibility()"
+**county_data\$S_0 <- initial_susceptibility(county_data)**: calculates the initial proportion of the population for the specified county that starts in the susceptible state, this equation calls on the previously defined function `initial_susceptibility()`
 
 **county_data\$S_0_v <- (county_data\$S_0)*percent_school_vaccinated**: uses the percentage of the school (calculated previously) to split the susceptible state and calculate the percentage of the population for the specified county that starts in the susceptible & vaccinated state
 
 **county_data\$S_0_n <- (county_data\$S_0)*(1 - percent_school_vaccinated)**: uses the percentage of the school (calculated previously) to split the susceptible state and calculate the percentage of the population for the specified county that starts in the susceptible & not vaccinated state (using 1 - percent_school_vaccinated)
 
-**county_data\$I_sv <- 0.5 * initial_infected_symptomatic(county_data)**:  calculates the initial proportion of the population for the specified county that starts in the infected, symptomatic, and vaccinated state; this equation calls on the previously defined function "initial_infected_symptomatic()"; there is a multiplier of 0.5 to split the proportion of total infected & symptomatic into infected, symptomatic, & vaccinated vs. infected, symptomatic, & not vaccinated -- if more information arises on the topic of proportions regarding infected, symptomatic, & vaccinated vs. not vaccinated, this proportion should need to be changed 
+**county_data\$I_sv <- percent_school_vaccinated * initial_infected_symptomatic(county_data)**:  calculates the initial proportion of the population for the specified county that starts in the infected, symptomatic, and vaccinated state; this equation calls on the previously defined function `initial_infected_symptomatic()`; there is a multiplier of 0.5 to split the proportion of total infected & symptomatic into infected, symptomatic, & vaccinated vs. infected, symptomatic, & not vaccinated -- if more information arises on the topic of proportions regarding infected, symptomatic, & vaccinated vs. not vaccinated, this proportion should need to be changed 
 
-**county_data\$I_sn <- 0.5 * initial_infected_symptomatic(county_data)**: calculates the initial proportion of the population for the specified county that starts in the infected, symptomatic, and not vaccinated state; this equation calls on the previously defined function "initial_infected_symptomatic()"; there is a multiplier of 0.5 to split the proportion of total infected & symptomatic into infected, symptomatic, & vaccinated vs. infected, symptomatic, & not vaccinated -- if more information arises on the topic of proportions regarding infected, symptomatic, & vaccinated vs. not vaccinated, this proportion should need to be changed (1 - previous proportion used)
+**county_data\$I_sn <- (1 - percent_school_vaccinated) * initial_infected_symptomatic(county_data)**: calculates the initial proportion of the population for the specified county that starts in the infected, symptomatic, and not vaccinated state; this equation calls on the previously defined function `initial_infected_symptomatic()`; there is a multiplier of 0.5 to split the proportion of total infected & symptomatic into infected, symptomatic, & vaccinated vs. infected, symptomatic, & not vaccinated -- if more information arises on the topic of proportions regarding infected, symptomatic, & vaccinated vs. not vaccinated, this proportion should need to be changed (1 - previous proportion used)
 
-**county_data\$I_av <- 0.5 * initial_infected_asymptomatic(county_data)**: calculates the initial proportion of the population for the specified county that starts in the infected, asymptomatic, and vaccinated state; this equation calls on the previously defined function "initial_infected_asymptomatic()"; there is a multiplier of 0.5 to split the proportion of total infected & asymptomatic into infected, asymptomatic, & vaccinated vs. infected, asymptomatic, & not vaccinated -- if more information arises on the topic of proportions regarding infected, asymptomatic, & vaccinated vs. not vaccinated, this proportion should need to be changed 
+**county_data\$I_av <- (percent_school_vaccinated) * initial_infected_asymptomatic(county_data)**: calculates the initial proportion of the population for the specified county that starts in the infected, asymptomatic, and vaccinated state; this equation calls on the previously defined function `initial_infected_asymptomatic()`; there is a multiplier of 0.5 to split the proportion of total infected & asymptomatic into infected, asymptomatic, & vaccinated vs. infected, asymptomatic, & not vaccinated -- if more information arises on the topic of proportions regarding infected, asymptomatic, & vaccinated vs. not vaccinated, this proportion should need to be changed 
 
-**county_data\$I_an <- 0.5 * initial_infected_asymptomatic(county_data)**: calculates the initial proportion of the population for the specified county that starts in the infected, asymptomatic, and vaccinated state; this equation calls on the previously defined function "initial_infected_asymptomatic()"; there is a multiplier of 0.5 to split the proportion of total infected & asymptomatic into infected, asymptomatic, & vaccinated vs. infected, asymptomatic, & not vaccinated -- if more information arises on the topic of proportions regarding infected, asymptomatic, & vaccinated vs. not vaccinated, this proportion should need to be changed 
+**county_data\$I_an <- (1 - percent_school_vaccinated) * initial_infected_asymptomatic(county_data)**: calculates the initial proportion of the population for the specified county that starts in the infected, asymptomatic, and vaccinated state; this equation calls on the previously defined function `initial_infected_asymptomatic()`; there is a multiplier of 0.5 to split the proportion of total infected & asymptomatic into infected, asymptomatic, & vaccinated vs. infected, asymptomatic, & not vaccinated -- if more information arises on the topic of proportions regarding infected, asymptomatic, & vaccinated vs. not vaccinated, this proportion should need to be changed 
 
-**county_data\$R_u <- initial_recovered_unknown(county_data)**: calculates the initial proportion of the population for the specified county that starts in the recovered unknown state; this equation calls on the previously defined function "initial_recovered_unknown()"
+**county_data\$R_u <- initial_recovered_unknown(county_data)**: calculates the initial proportion of the population for the specified county that starts in the recovered unknown state; this equation calls on the previously defined function `initial_recovered_unknown()`
 
-Because it is essential that the population remains a closed system, and that the model keeps track of all people within a population, it is essential that at all points in the simulation model that the total sum of all the proportions for each state equal 1. The follow line of code is what provides this check. Should this total not equal to 1, this is an indication that an error has occurred somewhere in the data or code and that the simulation model is no longer accurate. 
+**school <- generate_school(toString(county), days, masking, student_pop, faculty_pop, VR_s, VR_f, testing, pcr, elem)**: this line of code calls on the `generate_school()` function and allows for storage of the user's inputted data; `toString(county)` ensures that the county input by the user is a string. 
 
-**county_data\$total <- county_data\$S_0_v + county_data\$S_0_n + county_data\$I_sv + county_data\$I_av + county_data\$I_sn + county_data\$I_an + county_data\$R_u**
-
-
-**school <- generate_school(toString(county), days, masking, student_pop, faculty_pop, VR_s, VR_f, testing, pcr)**: this line of code calls on the "generate_school()" function and allows for storage of the user's inputted data; toString(county) ensures that the county input by the user is a string. 
-
-**single_county_data <- county_data[values(counties, key=c(county)),]**: this line of code allows us to isolate a single row of data from the "county_data" data frame containing all information from all counties, which in essence allows us to isolate the information for a single, specified county. [KYLE TO EXPLAIN LOGIC OF ISOLATION?]
-
+**single_county_data <- county_data[values(counties, key=c(county)),]**: this line of code allows us to isolate a single row of data from the "county_data" data frame containing all information from all counties, which in essence allows us to isolate the information for a single, specified county. As mentioned before, we use the `counties` dictionary defined above for this indexing. We want an integer for indexing, but we have a county name (for example, Gwinnett). We want to index `county_data` for Gwinnett's data. Using the `counties` dictionary, we can execute `values(counties, key=c("Gwinnett"))` and R will return us an integer (in this case, 67 because Gwinnett comes 67th alphabetically). From here, we can now access Gwinnett's data as `county_data[67]`.
 
 ```{r}
-county <- "Henry"
+# Functions defining initial states for all counties
+p0 = 0.7  # proportion of infections that are symptomatic
+
+initial_susceptibility <- function(county_data) {
+  result <- (county_data$population - county_data$cases) / county_data$population
+  return(result)
+}
+
+initial_infected_symptomatic <- function(county_data) {
+  result <- ((county_data$X14.day.cases) / county_data$population) * p0
+  return(result)
+}
+
+initial_infected_asymptomatic <- function(county_data) {
+  result <- ((county_data$X14.day.cases) / county_data$population) * (1 - p0)
+  return(result)
+}
+
+initial_recovered_unknown <- function(county_data) {
+  result <- (county_data$cases - county_data$X14.day.cases) / county_data$population
+  return(result)
+}
+
+county <- "Gwinnett"
 days <- 14
-masking <- 0.5
+masking <- 0.6
 testing <- 0.5
 pcr <- TRUE
-student_pop <- 648
-faculty_pop <- 43
-VR_s <- 0.0
-VR_f <- 0.0
+student_pop <- 1400
+faculty_pop <- 14
+VR_s <- 0.1
+VR_f <- 0.25
+elem <- FALSE
 
 students_vaccinated <- student_pop * VR_s
 faculty_vaccinated <- faculty_pop * VR_f
@@ -366,7 +379,7 @@ county_data$I_av <- (percent_school_vaccinated) * initial_infected_asymptomatic(
 county_data$I_an <- (1 - percent_school_vaccinated) * initial_infected_asymptomatic(county_data)
 county_data$R_u <- initial_recovered_unknown(county_data)
 
-school <- generate_school(toString(county), days, masking, student_pop, faculty_pop, VR_s, VR_f, testing, pcr)
+school <- generate_school(toString(county), days, masking, student_pop, faculty_pop, VR_s, VR_f, testing, pcr, elem)
 single_county_data <- county_data[values(counties, key=c(county)),]
 ```
 
@@ -374,7 +387,7 @@ single_county_data <- county_data[values(counties, key=c(county)),]
 
 The following section sets the initial, built-in parameters that the simulation model needs in order to function. The parameters are defined as follows, and can be updated here should more information arise regarding these parameters. It should also be noted that if the simulation model requires calibration, this section is where the calibration would most likely take place.
 
-[KYLE PLEASE DISCUSS THE "RUNIF" LOGIC FOR THE BETA VALUES]
+You will first notice a familiar function `runif()` for all 4 of the beta values. This is because we want to add a level of uncertainty to our simulation. If the beta values were a single value every time, it delimits the range of the simulation, but if the beta values are randomly selected from a range, we capture the uncertainty observed in human interaction. For this reason, we sample each of the beta values from a uniform distribution. For example, `b_1 <- runif(40, 0.051, 0.068)` tells R we want the variable `b_1` to be a list of 40 numbers, each number sampled from a uniform distribution between the values `[0.051, 0.068]`. We want a list of 40 numbers because we want to run the simulation 40 times instead of just once.
 
 **b_1**: transmission rate due to contact between susceptible vaccinated and infected asymptomatic patient
 
@@ -408,41 +421,41 @@ The following section sets the initial, built-in parameters that the simulation 
 
 **FPrap_s**: false positive rate of a rapid test for symptomatic patients (not seen / used in the code, strictly for informational purposes)
 
-**S_0_v = as.numeric(single_county_data[6])**: initial susceptibility of the vaccinated school population; obtains the value for S_0_v from the "single_county_data" variable defined earlier which contains the initial states for the user's specified county; 6 refers to the column number at which S_0_v is stored in within the "single_county_data" data frame 
+**S_0_v = as.numeric(single_county_data[6])**: initial susceptibility of the vaccinated school population; obtains the value for `S_0_v` from the `single_county_data` variable defined earlier which contains the initial states for the user's specified county; 6 refers to the column number at which `S_0_v` is stored in within the `single_county_data` data frame 
 
-**S_0_n = as.numeric(single_county_data[7])**: initial susceptibility of the not vaccinated school population; obtains the value for S_0_n from the "single_county_data" variable defined earlier which contains the initial states for the user's specified county; 7 refers to the column number at which S_0_n is stored in within the "single_county_data" data frame 
+**S_0_n = as.numeric(single_county_data[7])**: initial susceptibility of the not vaccinated school population; obtains the value for `S_0_n` from the `single_county_data` variable defined earlier which contains the initial states for the user's specified county; 7 refers to the column number at which `S_0_n` is stored in within the `single_county_data` data frame 
 
-**I_sv = as.numeric(single_county_data[8])**: initial infected, symptomatic, and vaccinated; obtains the value for I_sv from the "single_county_data" variable defined earlier which contains the initial states for the user's specified county; 8 refers to the column number at which I_sv is stored in within the "single_county_data" data frame 
+**I_sv = as.numeric(single_county_data[8])**: initial infected, symptomatic, and vaccinated; obtains the value for `I_sv` from the `single_county_data` variable defined earlier which contains the initial states for the user's specified county; 8 refers to the column number at which `I_sv` is stored in within the `single_county_data` data frame 
 
-**I_sn = as.numeric(single_county_data[9])**: initial infected, symptomatic, and not vaccinated; obtains the value for I_sn from the "single_county_data" variable defined earlier which contains the initial states for the user's specified county; 9 refers to the column number at which I_sn is stored in within the "single_county_data" data frame 
+**I_sn = as.numeric(single_county_data[9])**: initial infected, symptomatic, and not vaccinated; obtains the value for `I_sn` from the `single_county_data` variable defined earlier which contains the initial states for the user's specified county; 9 refers to the column number at which `I_sn` is stored in within the `single_county_data` data frame 
 
-**I_av = as.numeric(single_county_data[10])**: initial infected, asymptomatic, and vaccinated; obtains the value for I_av from the "single_county_data" variable defined earlier which contains the initial states for the user's specified county; 10 refers to the column number at which I_av is stored in within the "single_county_data" data frame 
+**I_av = as.numeric(single_county_data[10])**: initial infected, asymptomatic, and vaccinated; obtains the value for `I_av` from the `single_county_data` variable defined earlier which contains the initial states for the user's specified county; 10 refers to the column number at which `I_av` is stored in within the "single_county_data" data frame 
 
-**I_an = as.numeric(single_county_data[11])**: initial infected, asymptomatic, and not vaccinated; obtains the value for I_an from the "single_county_data" variable defined earlier which contains the initial states for the user's specified county; 11 refers to the column number at which I_an is stored in within the "single_county_data" data frame 
+**I_an = as.numeric(single_county_data[11])**: initial infected, asymptomatic, and not vaccinated; obtains the value for `I_an` from the `single_county_data` variable defined earlier which contains the initial states for the user's specified county; 11 refers to the column number at which `I_an` is stored in within the `single_county_data` data frame 
 
-**R_u = as.numeric(single_county_data[12])**: initial recovered unknown; obtains the value for R_u from the "single_county_data" variable defined earlier which contains the initial states for the user's specified county; 12 refers to the column number at which R_u is stored in within the "single_county_data" data frame 
+**R_u = as.numeric(single_county_data[12])**: initial recovered unknown; obtains the value for `R_u` from the `single_county_data` variable defined earlier which contains the initial states for the user's specified county; 12 refers to the column number at which `R_u` is stored in within the `single_county_data` data frame 
 
-**R_c**: initial recovered confirmed; simulation always starts out with 0 for this state [TALK TO KYLE FOR HELP WITH WORDING FOR REASONING]
+**R_c**: initial recovered confirmed; simulation always starts out with 0 for this state. The state begins at 0 because this variable specifically defines individuals who have tested positive within our simulation. Because the simulation has not started yet, no individual has gotten tested, so we cannot confirm that any individual has already been tested and confirmed to have recovered.
 
-**TFN_a**: initial population with a false negative and asymptomatic; starts with 0 because [TALK TO KYLE FOR HELP WITH WORDING FOR REASONING]
+**TFN_a**: initial population with a false negative and asymptomatic; starts with 0 for the same reason as `R_c`
 
-**TFN_s**: initial population with a false negative and symptomatic; starts with 0 because [TALK TO KYLE FOR HELP WITH WORDING FOR REASONING]
+**TFN_s**: initial population with a false negative and symptomatic; starts with 0 for the same reason as `R_c`
 
-**TISO_an**: initial population tested with infection, not in isolation, asymptomatic; starts with 0 because [TALK TO KYLE FOR HELP WITH WORDING FOR REASONING]
+**TISO_an**: initial population tested with infection, not in isolation, asymptomatic; starts with 0 for the same reason as `R_c`
 
-**TISO_ap**: initial population tested with infection, in isolation, asymptomatic; starts with 0 because [TALK TO KYLE FOR HELP WITH WORDING FOR REASONING]
+**TISO_ap**: initial population tested with infection, in isolation, asymptomatic; starts with 0 for the same reason as `R_c`
 
-**TISO_sn**: initial population tested with infection, not in isolation, symptomatic; starts with 0 because [TALK TO KYLE FOR HELP WITH WORDING FOR REASONING]
+**TISO_sn**: initial population tested with infection, not in isolation, symptomatic; starts with 0 for the same reason as `R_c`
 
-**TISO_sp**: initial population tested with infection, in isolation, symptomatic; starts with 0 because [TALK TO KYLE FOR HELP WITH WORDING FOR REASONING]
+**TISO_sp**: initial population tested with infection, in isolation, symptomatic; starts with 0 because for the same reason as `R_c`
 
 **n**: the total population of the school calculated by summing the value of the student population and the value of the faculty/staff population as specified by the user
 
 **days**: the number of days that the user wants to run the simulation for
 
-**semester**: a sequence variable that takes the "days" variable as an input and will be used later on in the "run_simulation" function (it is important this variable is of a sequence type as the function needs to take a sequence variable type in as opposed to an integer)
+**semester**: a sequence variable that takes the `days` variable as an input and will be used later on in the `run_simulation()` function (it is important this variable is of a sequence type as the function needs to take a sequence variable type in as opposed to an integer)
 
-**The T_pcr & T_rap parameters**: there is an "if-else" block of code that sets the values for T_pcr and T_rap. Because we are operating under the assumption that a school is only using one type of testing, if the user enters that their school is participating in PCR testing, then the the value of T_pcr is set to the proportion of the population participating in PCR testing and the value of T_rap is set to 0. And if the user enters that their school is participating in Rapid Antigen Testing, then the value of T_rap is set to the proportion of the population participating in Rapid Antigen Testing and the value of T_pcr is set to 0. 
+**The T_pcr & T_rap parameters**: there is an "if-else" block of code that sets the values for T_pcr and T_rap. Because we are operating under the assumption that a school is only using one type of testing, if the user enters that their school is participating in PCR testing, then the the value of T_pcr is set to the proportion of the population participating in PCR testing and the value of T_rap is set to 0. Else, if the user enters that their school is participating in Rapid Antigen Testing, then the value of T_rap is set to the proportion of the population participating in Rapid Antigen Testing and the value of T_pcr is set to 0. 
 
 Once these built-in parameters have been specified, we can define the variables that will later be used in the differential equations, simulation model seen later on. It is important to note that the simulation model takes in a set of lists to help define the initial states of the system as well as specified parameters. For that reason, we obtain the following variables which sets the parameters that the model will take in to the values we have just defined for them:
 
@@ -450,11 +463,19 @@ Once these built-in parameters have been specified, we can define the variables 
 
 * no_testing
 
+* testing_baseline
+
+* no_testing_baseline
+
 * initial_state
 
-The reason why we have a "testing" variable and a "no_testing" variable is to mimic the model created in a joint effort by Georgia Tech, NC State University, and DPH which assumed that testing was occurring on a weekly basis on the first day of the week, and for the remaining 6 days of the week, no testing was occurring. This is why you can see that when setting the parameters in the "testing" variable, the values for T_pcr and T_rap are set equal to the user-defined value, while in the "no_testing" variable, those variables are automatically set to 0 (other than this, the two variables are identical). 
+* inital_state_baseline
 
-It should be mentioned as well that the "testing" and "no_testing" variables set the parameters, while the "initial_state" variable sets the initial state values for the simulation for the user's specified county. 
+The reason why we have a `testing` variable and a `no_testing` variable is to mimic the model created in a joint effort by Georgia Tech, NC State University, and DPH which assumed that testing was occurring on a weekly basis on the first day of the week, and for the remaining 6 days of the week, no testing was occurring. This is why you can see that when setting the parameters in the `testing` variable, the values for T_pcr and T_rap are set equal to the user-defined value, while in the `no_testing` variable, those variables are automatically set to 0 (other than this, the two variables are identical). 
+
+The same reasoning goes for `testing_baseline`, `no_testing_baseline`, and `inital_state_baseline`. These variables have been hard-coded to include no intervention strategies. The simulation will also run for no intervention strategies so the user can compare between the intervention(s) they inputted as well as the "what if we do nothing".
+
+It should be mentioned as well that the `testing` and `no_testing` variables set the parameters, while the `initial_state` variable sets the initial state values for the simulation for the user's specified county. 
 
 ```{r}
 # Initial built-in parameters
@@ -475,17 +496,21 @@ FPpcr_a = 0.05     # false positive rate of a PCR test for asymptomatic patients
 FPpcr_s = 0.05     # false positive rate of a PCR test for symptomatic patients
 FPrap_a = 0.10     # false positive rate of a rapid test for asymptomatic patients
 FPrap_s = 0.10     # false positive rate of a rapid test for symptomatic patients
+
 # Initial susceptibility values
 S_0_v = as.numeric(single_county_data[6])    # initial susceptibility of the vaccinated school population
 S_0_n = as.numeric(single_county_data[7])    # initial susceptibility of the not vaccinated school population
+
 # Calculations for the initial infected
 I_sv = as.numeric(single_county_data[8])     # initial infected, symptomatic, and vaccinated
 I_sn = as.numeric(single_county_data[9])     # initial infected, symptomatic, and not vaccinated
 I_av = as.numeric(single_county_data[10])    # initial infected, asymptomatic, and vaccinated
 I_an = as.numeric(single_county_data[11])    # initial infected, asymptomatic, and not vaccinated
+
 # Recovered states
 R_u = as.numeric(single_county_data[12])     # initial recovered unknown
 R_c = 0.0                                    # initial recovered confirmed
+
 # Initial test values (no tests administered)
 TFN_a = 0       # initial population with a false negative and asymptomatic
 TFN_s = 0       # initial population with a false negative and symptomatic 
@@ -511,6 +536,13 @@ if (values(school, key=c("pcr"))) {
   T_rap <- values(school, key=c("testing"))
 }
 
+# Here we determine if the school is an elementary school based on user input. If it is, assign the elementary school multiplier to 0.73 to account for historically less transmission in elementary schools
+if (values(school, key=c("elem"))) {
+  elementary_multiplier <- 0.73
+} else {
+  elementary_multiplier <- 1
+}
+
 # Initial built in parameters for testing and no testing days
 testing <- c(b_1 = b_1[1], b_2 = b_2[1], b_3 = b_3[1], b_4 = b_4[1], p0 = p0, c_a = c_a, c_s = c_s, MC = values(school, key=c("masking")), T_pcr = T_pcr, T_rap = T_rap, gamma = gamma, FNpcr_a = FNpcr_a, FNpcr_s = FNpcr_s, FNrap_a = FNrap_a, FNrap_s = FNrap_s)
 
@@ -523,69 +555,86 @@ initial_state <- c(S_0_v = S_0_v, S_0_n = S_0_n, I_av = I_av, I_an = I_an, I_sv 
 testing_baseline <- c(b_1 = b_1[1], b_2 = b_2[1], b_3 = b_3[1], b_4 = b_4[1], p0 = p0, c_a = c_a, c_s = c_s, MC.masking = 0, T_pcr = 0, T_rap = 0, gamma = gamma, FNpcr_a = FNpcr_a, FNpcr_s = FNpcr_s, FNrap_a = FNrap_a, FNrap_s = FNrap_s)
 
 no_testing_baseline <- c(b_1 = b_1[1], b_2 = b_2[1], b_3 = b_3[1], b_4 = b_4[1], p0 = p0, c_a = c_a, c_s = c_s, MC.masking = 0, T_pcr = 0, T_rap = 0, gamma = gamma, FNpcr_a = FNpcr_a, FNpcr_s = FNpcr_s, FNrap_a = FNrap_a, FNrap_s = FNrap_s)
+
+# Initial state of the system (no intervention strategies)
+initial_state_baseline <- c(S_0_v = 0, S_0_n = S_0_n + S_0_v, I_av = 0, I_an = I_an + I_av, I_sv = 0, I_sn = I_sn + I_sv, TFN_a = TFN_a, TFN_s = TFN_s, TISO_an = TISO_an, TISO_sn = TISO_sn, TISO_ap = TISO_ap, TISO_sp = TISO_sp, RC = R_c, RU = R_u)
 ```
 
 ## Creating Functions to Define the State Transition Differential Equations
 
 The following block of code translates the state transition differential equations listed previously into callable functions within the code. For this reason, if any of the equations are modified in any way, these changes would be need to be reflected in the following section to ensure that they are appropriate reflected in the simulation and results. 
 
-Each of the functions has a set of parameters that they can take in as inputs, and then they use these inputs to calculate and return the respective values. For instance, the initial susceptible & vaccinated state equation (S_dot_v) utilizes the transmission rate due to contact between susceptible vaccinated and infected asymptomatic patient (b_1), the proportion of the school population that is wearing masks (MC), the initial susceptibility of the vaccinated school population (S_0_v), initial infected, asymptomatic, and vaccinated (I_av), initial population with a false negative and asymptomatic (TFN_a), initial population tested with infection, not in isolation, asymptomatic (TISO_an),  transmission rate due to contact between susceptible vaccinated and infected symptomatic patient (b_2), initial infected, symptomatic, and vaccinated (I_sv), initial population with a false negative and symptomatic (TFN_s), and initial population tested with infection, not in isolation, symptomatic (TISO_sn). The "S_dot_v" can then use these values to calculate, predict, and return the result for the susceptible and vaccinated state for the following day. This is important because the value that is return for the following day is used as the initial state for predicted the day after the following day (and so on for the specified duration of the simulation model).
+Each of the functions has a set of parameters that they can take in as inputs, and then they use these inputs to calculate and return the respective values. For instance, the initial susceptible & vaccinated state equation (`S_dot_v()`) utilizes the transmission rate due to contact between susceptible vaccinated and infected asymptomatic patient (`b_1`), the proportion of the school population that is wearing masks (`MC`), the initial susceptibility of the vaccinated school population (`S_0_v`), initial infected, asymptomatic, and vaccinated (`I_av`), initial population with a false negative and asymptomatic (`TFN_a`), initial population tested with infection, not in isolation, asymptomatic (`TISO_an`),  transmission rate due to contact between susceptible vaccinated and infected symptomatic patient (b_2), initial infected, symptomatic, and vaccinated (I_sv), initial population with a false negative and symptomatic (`TFN_s`), and initial population tested with infection, not in isolation, symptomatic (`TISO_sn`). The `S_dot_v()` can then use these values to calculate, predict, and return the result for the susceptible and vaccinated state for the following day. This is important because the value that is return for the following day is used as the initial state for predicted the day after the following day (and so on for the specified duration of the simulation model).
 
 
 ```{r}
 # State transition differential equation definitions
+
 S_dot_v <- function(b_1, MC, S_0_v, I_av, TFN_a, TISO_an, b_2, I_sv, TFN_s, TISO_sn) {
   result <- (-b_1 * (1 - MC) * S_0_v * (I_av + TFN_a + TISO_an)) - (b_2 * (1 - MC) * S_0_v * (I_sv + TFN_s + TISO_sn))
   return(result)
 }
+
 S_dot_n <- function(b_3, MC, S_0_n, I_an, TFN_a, TISO_an, b_4, I_sn, TFN_s, TISO_sn) {
   result <- (-b_3 * (1 - MC) * S_0_n * (I_an + TFN_a + TISO_an)) - (b_4 * (1 - MC) * S_0_n * (I_sn + TFN_s + TISO_sn))
   return(result)
 }
+
 I_av_dot <- function(p0, b_1, MC, S_0_v, I_av, TFN_a, TISO_an, b_2, I_sv, TFN_s, TISO_sn, T_pcr, T_rap, gamma) {
   result <- (1 - p0) * ((b_1 * (1 - MC) * S_0_v * (I_av + TFN_a + TISO_an)) + (b_2 * (1 - MC) * S_0_v * (I_sv + TFN_s + TISO_sn))) - (T_pcr * I_av) - (T_rap * I_av) - (gamma * I_av)
   return(result)
 }
+
 I_an_dot <- function(p0, b_3, MC, S_0_n, I_an, TFN_a, TISO_an, b_4, I_sn, TFN_s, TISO_sn, T_pcr, T_rap, gamma) {
   result <- (1 - p0) * ((b_3 * (1 - MC) * S_0_n * (I_an + TFN_a + TISO_an)) + (b_4 * (1 - MC) * S_0_n * (I_sn + TFN_s + TISO_sn))) - (T_pcr * I_an) - (T_rap * I_an) - (gamma * I_an)
   return(result)
 }
+
 I_sv_dot <- function(p0, b_1, MC, S_0_v, I_av, TFN_a, TISO_an, b_2, I_sv, TFN_s, TISO_sn, T_pcr, T_rap, gamma) {
   result <- p0 * ((b_1 * (1 - MC) * S_0_v * (I_av + TFN_a + TISO_an)) + (b_2 * (1 - MC) * S_0_v * (I_sv + TFN_s + TISO_sn))) - (T_pcr * I_sv) - (T_rap * I_sv) - (gamma * I_sv)
   return(result)
 }
+
 I_sn_dot <- function(p0, b_3, MC, S_0_n, I_an, TFN_a, TISO_an, b_4, I_sn, TFN_s, TISO_sn, T_pcr, T_rap, gamma) {
   result <- p0 * ((b_3 * (1 - MC) * S_0_n * (I_an + TFN_a + TISO_an)) + (b_4 * (1 - MC) * S_0_n * (I_sn + TFN_s + TISO_sn))) - (T_pcr * I_sn) - (T_rap * I_sn) - (gamma * I_sn)
   return(result)
 }
+
 TFN_a_dot <- function(T_pcr, FNpcr_a, I_av, I_an, T_rap, FNrap_a, gamma, TFN_a) {
   result <- (T_pcr * FNpcr_a * (I_av + I_an)) + (T_rap * FNrap_a * (I_av + I_an)) - (gamma * TFN_a)
   return(result)
 }
+
 TFN_s_dot <- function(T_pcr, FNpcr_s, I_sv, I_sn, T_rap, FNrap_s, gamma, TFN_s) {
   result <- (T_pcr * FNpcr_s * (I_sv + I_sn)) + (T_rap * FNrap_s * (I_sv + I_sn)) - (gamma * TFN_s)
   return(result)
 }
+
 TISO_ap_dot <- function(c_a, T_pcr, FNpcr_a, I_av, I_an, T_rap, FNrap_a, gamma, TISO_ap) {
   result <- c_a * ((T_pcr * (1 -FNpcr_a) * (I_av + I_an)) + (T_rap * (1 - FNrap_a) * (I_av + I_an))) - (gamma * TISO_ap)
   return(result)
 }
+
 TISO_sp_dot <- function(c_s, T_pcr, FNpcr_s, I_sv, I_sn, T_rap, FNrap_s, gamma, TISO_sp) {
   result <- c_s * ((T_pcr * (1 - FNpcr_s) * (I_sv + I_sn)) + (T_rap * (1 - FNrap_s) * (I_sv + I_sn))) - (gamma * TISO_sp)
   return(result)
 }
+
 TISO_an_dot <- function(c_a, T_pcr, FNpcr_a, I_av, I_an, T_rap, FNrap_a, gamma, TISO_an) {
   result <- (1 - c_a) * ((T_pcr * (1 - FNpcr_a) * (I_av + I_an)) + (T_rap * (1 - FNrap_a) * (I_av + I_an))) - (gamma * TISO_an)
   return(result)
 }
+
 TISO_sn_dot <- function(c_s, T_pcr, FNpcr_s, I_sv, I_sn, T_rap, FNrap_s, gamma, TISO_sn) {
   result <- (1 - c_s) * ((T_pcr * (1 - FNpcr_s) * (I_sv + I_sn)) + (T_rap * (1 - FNrap_s) * (I_sv + I_sn))) - (gamma * TISO_sn)
   return(result)
 }
+
 RC_dot <- function(gamma, TISO_ap, TISO_sp, TISO_an, TISO_sn) {
   result <- gamma * (TISO_ap + TISO_sp + TISO_an + TISO_sn)
   return(result)
 }
+
 RU_dot <- function(gamma, I_av, I_an, I_sv, I_sn, TFN_a, TFN_s) {
   result <- gamma * ((I_av + I_an) + (I_sv + I_sn) + TFN_a + TFN_s)
   return(result)
@@ -594,17 +643,17 @@ RU_dot <- function(gamma, I_av, I_an, I_sv, I_sn, TFN_a, TFN_s) {
 
 ## The Simulation Model
 
-The following section of code is what enables the simulation model to function and run as intended. First, we must let R know that we will be using the packages "deSolve", "scatterplot3d", and "lubridate", and this can be seen by calling "library(-package-)". 
+The following section of code is what enables the simulation model to function and run as intended. First, we must let R know that we will be using the packages `deSolve`, `scatterplot3d`, and `lubridate`, and this can be seen by calling `library(-package-)`. 
 
-Lines ____ - ____ defines the function which allows the differential equations to update day over day. The function takes in 3 parameters as inputs:
+The `differentials <- function(t, state, parameters)` block of code is what defines the function which allows the differential equations to update day over day. The function takes in 3 parameters as inputs:
 
-1. **t**: the specified time period (in days) that the user wants to run the simulation for
+1. **t**: the specified time sequence (in days) that the user wants to run the simulation for
 
 2. **state**: a list containing the initial state values of the system 
 
 3. **parameters**: a list containing the values of the necessary parameters used in the differential equations functions
 
-Using these specified inputs, the "differentials" function then calculates the predicted values for each state for the following day by calling on the previously defined state equation functions and using the initial state values and parameters passed into the function. More formally, the variables being defined within this function that call on the previously defined differential equation functions refer to the rate of change of the proportion of the population that are leaving or entering into one of the other states. The function then returns the set of predicted values for each state as a list for the following day. This is important because in the second part of this code block, the predicted state values returned for the following day will be used as the initial state values for predicted the 3rd day (and so on). This is why the first line of the function is writtend "with(as.list(c(state, parameters)))" and why the function returns a list as well, written as "return(list(c(-predicted state values-)))". It should also be noted, that if any of the state equations change, they will also need to be updated in this section of the code. For instance, if additional parameters or values are added to the S_dot equation, these changes will need to be reflected here to obtain the true, predicted value of dS_v. 
+Using these specified inputs, the `differentials()` function then calculates the predicted values for each state for the following day by calling on the previously defined state equation functions and using the initial state values and parameters passed into the function. More formally, the variables being defined within this function that call on the previously defined differential equation functions refer to the rate of change of the proportion of the population that are leaving or entering into one of the other states. The function then returns the set of predicted values for each state as a list for the following day. This is important because in the second part of this code block, the predicted state values returned for the following day will be used as the initial state values for predicted the 3rd day (and so on). This is why the first line of the function is written `with(as.list(c(state, parameters)))` and why the function returns a list as well, written as `return(list(c(-predicted state values-)))`. It should also be noted, that if any of the state equations change, they will also need to be updated in this section of the code. For instance, if additional parameters or values are added to the `S_dot_v()` equation, these changes will need to be reflected here to obtain the true, predicted value of `dS_v`. 
 
 The second function in this block of code is the "run_simulation" function, which takes in 4 parameters as inputs:
 
@@ -616,19 +665,15 @@ The second function in this block of code is the "run_simulation" function, whic
  
 4. **semester**: the length of time in days that the user wants to run the simulation for (this variable is defined previously as a sequence based on the number of days that user has specified, it is important to note that this variable is a sequence type variable and NOT an integer)
 
-This function starts off by instantiating a "states" list that the list of values for each predicted day are added to as the simulation runs so that we are able to view the changes in states day over day. The function then iterates over the days of the specified duration (in this case, semester) and creates a sequence for each day. Creating a sequence for each day is what allows the simulation to use the differential equations to use the initial states to predict the following day's state values. Because of the assumption that testing only occurs once per week, the function then includes and "if-else"  block. This "if-else" statement says that if the t-th day is divisible without a remainder (or rather, the t-th day is a multiple of 7), then the parameters used should be those specified by the "testing" variable, and otherwise (days 1-6), the parameters used in the simulation for that day should be those specified by the "no_testing" variable. In this case, the only way in which the "testing" and "no_testing" variable differ is in that of the T_pcr or T_rap parameters. The "testing" variable sets the T_pcr or T_rap variable to percentage of the population participating in regular testing that the user specifies, while the "no_testing" variable has these values automatically defaulted to 0. Following the "if-then" block, the "run_simulation" function re-sets the initial "state" parameter to the results returned by the "ode" function, which is a differential equation helper function that utilizes initial "state" variable passed into the "run_simulation" function, the "day" sequence variable that was instantiated previously, the "differentials" function that we mentioned previously, and the "parameters" variable which we have set in the "if-else" block based on whether or not the day is a "testing" or "no_testing" day. Re-instantiating the "state" variable allows the following day to use the predicted values as the initial values for that day. 
+The function `run_simulation()` starts off by instantiating a `states` list that the list of values for each predicted day are added to as the simulation runs so that we are able to view the changes in states day over day. The function then iterates over the days of the specified duration (in this case, `semester`) and creates a sequence for each day. Creating a sequence for each day is what allows the simulation to use the differential equations to use the initial states to predict the following day's state values. Because of the assumption that testing only occurs once per week, the function then includes an "if-else"  block. This "if-else" statement says that if the t-th day is divisible without a remainder (or rather, the t-th day is a multiple of 7), then the parameters used should be those specified by the `testing` variable, and otherwise (days 1-6), the parameters used in the simulation for that day should be those specified by the `no_testing` variable. In this case, the only way in which the `testing` and `no_testing` variable differ is in that of the `T_pcr` or `T_rap` parameters. The `testing` variable sets the `T_pcr` or `T_rap` variable to percentage of the population participating in regular testing that the user specifies, while the `no_testing` variable has these values automatically defaulted to 0. Following the "if-else" block, the function re-sets the initial `state` parameter to the results returned by the `ode()` function, which is a differential equation helper function that utilizes initial `state` variable passed into the `run_simulation()` function, the `day` sequence variable that was instantiated previously, the `differentials()` function that we mentioned previously, and the `parameters` variable which we have set in the "if-else" block based on whether or not the day is a `testing` or `no_testing` day. Re-instantiating the `state` variable allows the following day to use the predicted values as the initial values for that day. 
 
-Furthermore, this ode (refering to Ordinary Differential Equations) solves ordinary differential equations in R and contains two integration methods. This ode function is essentially how the model is solved as it returns an object of class deSolve with a matrix that contains the values of the state variables at the requested output times. The reason behind having the indexed "[2, c(2:15)]" at the end of this line of code is to capture only the predicted values for the 14 states as a list. 
+Furthermore, this `ode()` function (referring to Ordinary Differential Equations) solves ordinary differential equations in R and contains two integration methods. The function is essentially how the model is solved as it returns an object of class `deSolve` with a matrix that contains the values of the state variables at the requested output times. The reason behind having the indexed "[2, c(2:15)]" at the end of this line of code is to capture only the predicted values for the 14 states as a list. 
 
-Lastly, the predicted values for each state for the following day are added to the "states" list so that we are able to track the differences / state changes day over day and store them in a single variable. The "run_simulation" function then returns this "states" variable so that we are actually able to view the results. It is important to note that this function returns the final values (which are proportions of the population) for all 14 states day over day for the specified duration. This means that simply running this "run_simulation" function will not output the number of predicted cases. Please refer to the next section of this manual "Calculating the Number of Cases per Day, Cumulative Cases, and Graphing the Results" in order to see how the changes in the state values day over day are translated to the predicted number of cases. 
+Lastly, the predicted values for each state for the following day are added to the `states` list so that we are able to track the differences / state changes day over day and store them in a single variable. The `run_simulation()` function then returns this `states` variable so that we are actually able to view the results. It is important to note that this function returns the final values (which are proportions of the population) for all 14 states day over day for the specified duration. This means that simply running this `run_simulation()` function will not output the number of predicted cases. Please refer to the next section of this manual "Calculating the Number of Cases per Day, Cumulative Cases, and Graphing the Results" in order to see how the changes in the state values day over day are translated to the predicted number of cases. 
 
-[KYLE PLEASE UPDATE THIS SECTION TO DISCUSS THE MC.MASKING INPUT FOR THE SUSCEPTIBLE/INFECTED STATES & DISCUSS THE 2 FOLLOWING FUNCTIONS NECESSARY FOR INTERNAL USE]
+You will notice two additional functions in this section: `update_parms()` and `run_simulation_repeated()`. `update_parms()` is strictly for internal use (you will notice the only time this function is called is within `run_simulation_repeated()`). The purpose of `run_simulation_repeated()` is the run the simulation for some specified number of times (default is 40). The motivation behind this is to find daily case averages across $i$ iterations. The logic for this function is esentially the same as `run_simulation()`, but we want to call `run_simulation()` $i$ times and store the results. `update_parms()` simply increments the beta values. If you remember, we defined $b_i$ to be a list of 40 beta values from a uniform distribution. $update_parms()$ simply selects the next beta value from that list.
 
-```{r, results='hide'}
-library(deSolve)
-library(scatterplot3d)
-library(lubridate)
-```
+If you wish to run the simulation for a number different from 40, be sure to change 40 everywhere in this file to the new desired value.
 
 ```{r}
 # Define generic differential update function
@@ -692,12 +737,88 @@ run_simulation_repeated <- function(j, state, testing, no_testing, semester) {
 
 ## Calculating the Number of Cases per Day, Cumulative Cases, and Graphing the Results
 
-**[KYLE NEEDS TO WRITE THIS SECTION]**
+The following code block is essentially used for calculating cases per day, calculating cumulative cases across the simulation, and running statistical analysis on the results. Although this may look like a lot, the main goal for understanding here is to understand the format of the function inputs. We will explain each function in isolation, then get into how they work together.
 
-The following code block is primarily used for statistical analysis of the results from running the simulation $i$ number of times. By default, $i = 40$. To change the total number of iterations, please modify the $40$ found in the function call on the last line of the previous code block.
+### `calculate_cases()`
+Inputs
+* `states`: a list of solved states returned from `run_simulation()`.
+
+Returns
+A list of integers of length days in simulation. Each element of the list represents the cases found on that particular day of the simulation. This process is done by taking the difference in susceptible states between two consecutive days. Because we want integers for cases and not decimals, we take the ceiling (respectably floor) depending on how many cases the simulation observes for that day.
+
+### `calculate_cumulative_cases()`
+Inputs
+* `cases_per_day`: a list of integers representing the cases of one simulation run returned from `calcaute_cases()`
+
+Returns
+A list of integers of length days in simulation. Each element of the list represents the cumulative cases up to that day of the simulation. This process is done by having a running total of cases, adding the cases for the current day to that running total, and letting the running total be the cumulative cases for that day.
+
+### `calculate_cases_multiple_simulations()`
+Inputs
+* `j`: an integer representing the number of times the simulation was run (by default, 40)
+* `results`: a list of lists representing solved states across j iterations. This list of lists is returned by `run_simulation_repeated()` defined earlier.
+
+Returns
+A list of lists representing the cases per day across j simulations. This data is difficult to visualize, so I will try to explain. If we run a simulation 40 times for 14 days each time, the returned (outer) list will be of length 40 (for the 40 simulations) and the (inner) list will be of length 14 (for the 14 days). If we look at `result[1][12]`, we are viewing the cases the simulation observed for the 1st simulation run on the 12th day.
+
+### `reorganize_total_cases()`
+Inputs
+* `n`: an integer representing the number of times the simulation was run (by default, 40)
+* `total_cases`: a list of list representing the cases per day across n simulations. This list is directly from `calculate_cases_multiple_simulations()`
+
+Returns
+A list of lists representing the cases per day across n simulations. We want to "invert" the list from `calculate_cases_multiple_simulations()`. In our previous example, we had an outer list of length 40 and inner list of length 14. This function returns an outer list of length 14 and inner list of length 40. If we look at `result[3][30]` `result[3][31]` we would be seeing the 30th simulation of cases on day 3 and the 31st simulation of cases on day 3. This is simply because we want our analysis to be across days, and formatting the data in this way makes analysis much easier to execute.
+
+### `reorganize_cumulative_cases()`
+Inputs
+* `n`: an integer representing the number of times the simulation was run (by default, 40)`
+* `total_cases`: a list of list representing the cases per day across n simulations. This list is direction from `calculate_cases_multiple_simulations()`
+
+Returns
+A list of lists representing the cumulative cases per day across n simulations. We want to both "invert" the list from `calculate_cases_multiple_simulations()`, but unlike `reorganize_total_cases()`, we want the cases for each day to be cumulative.
+
+### `avg_cases_per_day()`
+Inputs
+* `reorganized_cases`: A list of lists representing the cases per day across n simulations (from either `reorganize_total_cases()` or `reorganize_cumulative_cases()`)
+
+Returns
+A list of length days in simulation representing the average cases on day j across n simulations
+
+### `st_dev_cases_per_day()`
+Inputs
+* `reorganized_cases`: A list of lists representing the cases per day across n simulations (from either `reorganize_total_cases()` or `reorganize_cumulative_cases()`)
+
+Returns
+A list of length days in simulation representing the standard deviation of cases on day j across n simulations
+
+### `margins_per_day()`
+Inputs
+* `reorganized_cases`: A list of lists representing the cases per day across n simulations (from either `reorganize_total_cases()` or `reorganize_cumulative_cases()`)
+
+Returns
+A list of length days in simulation representing a 95% confidence margins of cases on day j across n simulations
+
+### `generate_graph_cases_per_day()`
+Inputs
+* `reorganized_cases`: A list of lists representing the cases per day across n simulations (from either `reorganize_total_cases()` or `reorganize_cumulative_cases()`)
+* `reorganized_cases_baseline`: A list of lists representing the cases per day across n simulations for the baseline, no intervention (from either `reorganize_total_cases()` or `reorganize_cumulative_cases()`)
+
+Returns
+A graph object containing cases per day for both the user inputted intervention as well as cases per day for no interventions. Both graphs come with shading for a 95% confidence interval
+
+### `generate_graph_cumulative_cases()`
+Inputs
+* `reorganized_cases`: A list of lists representing the cases per day across n simulations (from either `reorganize_total_cases()` or `reorganize_cumulative_cases()`)
+* `reorganized_cases_baseline`: A list of lists representing the cases per day across n simulations for the baseline, no intervention (from either `reorganize_total_cases()` or `reorganize_cumulative_cases()`)
+
+Returns
+A graph object containing cumulative cases for both the user inputted intervention as well as cumulative cases for no interventions. Both graphs come with shading for a 95% confidence interval
+
+## Summary
+
+The majority of these functions are helper functions. Our overall goal here is to acquire the graphs from the last two functions. All of the other functions are step by step helpers to get us there. You will notice a lot of the later functions call the earlier functions. By breaking down the process step by step, each function serves only one purpose, making it easier to isolate errors and make updates.
+
 ```{r}
-library(ggplot2)
-
 # Function to determine number of cases for each day. Returns list of length days where each element is the cases for that day
 calculate_cases <- function(states) {
   cases_per_day <- list()
@@ -708,17 +829,16 @@ calculate_cases <- function(states) {
     
     current_susceptibility <- as.numeric(current_state["S_0_v"] + current_state["S_0_n"])
     infection_attack_rate <- as.numeric((previous_state["S_0_v"] + previous_state["S_0_n"])) - current_susceptibility
-    decimal_of_IAR <- (infection_attack_rate * n) - floor(infection_attack_rate * n)
-    if (decimal_of_IAR >= 0.5) {
-      cases_per_day[i] <- ceiling(infection_attack_rate * n)
+    decimal_of_IAR <- as.numeric((infection_attack_rate * n) - floor(infection_attack_rate * n))
+    if (decimal_of_IAR >= 0.7) {
+      cases_per_day[i] <- ceiling(infection_attack_rate * n) * elementary_multiplier
     } else {
-      cases_per_day[i] <- floor(infection_attack_rate * n)
+      cases_per_day[i] <- floor(infection_attack_rate * n) * elementary_multiplier
     }
     cases_per_day[i] <- as.numeric(cases_per_day[i])
   }
   return(cases_per_day)
 }
-
 # Function to determine cumulative cases over the simulation duration. Returns list of length days where each element is the total cases since the start of the simulation
 calculate_cumulative_cases <- function(cases_per_day) {
   cumulative_cases <- list()
@@ -729,7 +849,6 @@ calculate_cumulative_cases <- function(cases_per_day) {
   }
   return(cumulative_cases)
 }
-
 # Use this function to get cases per day for multiple simulation runs
 calculate_cases_multiple_simulations <- function(j, results) {
   total_cases <- list()
@@ -739,7 +858,6 @@ calculate_cases_multiple_simulations <- function(j, results) {
   }
   return(total_cases)
 }
-
 # Function converts total_cases to a list of list. Outer list is number of cases for day i within each simulation. Inner list is of length number of simulations
 reorganize_total_cases <- function(n, total_cases) {
   reorganized_cases <- list()
@@ -752,7 +870,23 @@ reorganize_total_cases <- function(n, total_cases) {
   }
   return(reorganized_cases)
 }
-
+# Use this function to convert reorganized cases to cumulative cases over i simulations
+reorganize_cumulative_cases <- function(n, total_cases) {
+  temp_cumulative_cases <- list()
+  for (i in 1:n) {
+    temp_cumulative_cases[[length(temp_cumulative_cases) + 1]] <- calculate_cumulative_cases(total_cases[[i]])
+  }
+  
+  cumulative_cases <- list()
+  for (j in 1:days) {
+    cumulative_cases_day_j <- list()
+    for (i in 1:n) {
+      cumulative_cases_day_j[[length(cumulative_cases_day_j) + 1]] <- temp_cumulative_cases[[i]][[j]]
+    }
+    cumulative_cases[[length(cumulative_cases) + 1]] <- cumulative_cases_day_j
+  }
+  return(cumulative_cases)
+}
 # Get average for cases per day
 avg_cases_per_day <- function(reorganized_cases) {
   day_avgs <- list()
@@ -768,7 +902,6 @@ avg_cases_per_day <- function(reorganized_cases) {
   }
   return(day_avgs)
 }
-
 # Get standard deviation for cases per day
 st_dev_cases_per_day <- function(reorganized_cases) {
   st_devs <- list()
@@ -777,7 +910,6 @@ st_dev_cases_per_day <- function(reorganized_cases) {
   }
   return(st_devs)
 }
-
 # Get margins for confidence intervals for cases per day
 margins_per_day <- function(reorganized_cases) {
   n <- length(reorganized_cases[[1]])
@@ -788,7 +920,6 @@ margins_per_day <- function(reorganized_cases) {
   }
   return(margins)
 }
-
 # Use this function to graph average cases per day over days in simulation. Returns graph as object
 generate_graph_cases_per_day <- function(reorganized_cases, reorganized_cases_baseline) {
   n <- length(reorganized_cases[1])
@@ -813,121 +944,116 @@ generate_graph_cases_per_day <- function(reorganized_cases, reorganized_cases_ba
   df <- data.frame(data, data_base)
   
   p <- ggplot(data = df, aes(x = x)) +
+        geom_ribbon(aes(ymin = lower, ymax = upper), fill = "gray48", alpha = 0.4) +
         geom_line(aes(y = y, colour="Intervention")) +
         geom_point(aes(x=x, y=y, colour="Intervention")) +
-        geom_ribbon(aes(ymin = lower, ymax = upper), alpha = 0.05) +
+        geom_ribbon(aes(ymin = lower_base, ymax = upper_base), fill = "gray48", alpha = 0.4) +
         geom_line(aes(y = y_base, colour="No Intervention")) +
         geom_point(aes(x=x, y=y_base, colour="No Intervention")) +
-        geom_ribbon(aes(ymin = lower_base, ymax = upper_base), alpha = 0.05) +
         scale_color_manual("",
               breaks = c("Intervention", "No Intervention"),
-              values = c("green", "red")) +
+              values = c("green3", "red")) +
+        scale_x_continuous(breaks=c(1:days)) +
+        scale_y_continuous(breaks=c(1:(y_base[days] + 1))) +
         xlab("Days") + 
         ylab("Number of Cases") +
         labs(title="Predicted Number of new Cases per Day")
-  return(p)
+  return(p + theme_bw())
 }
-
 # Use this function to graph cumulative cases over days in simulation. Returns graph as object
-generate_graph_cumulative_cases <- function(reorganized_cases, reorganized_cases_baseline) {
-  n <- length(reorganized_cases[1])
-  avg_cases <- as.numeric(avg_cases_per_day(reorganized_cases))
-  avg_cases_base <- as.numeric(avg_cases_per_day(reorganized_cases_baseline))
+generate_graph_cumulative_cases <- function(cumulative_cases, cumulative_cases_baseline) {
+  n <- length(cumulative_cases[1])
+  avg_cases <- as.numeric(avg_cases_per_day(cumulative_cases))
+  st_devs <- as.numeric(st_dev_cases_per_day(cumulative_cases))
+  margins <- as.numeric(margins_per_day(cumulative_cases))
+  upper <- avg_cases + margins
+  lower <- avg_cases - margins
   
-  cumulative_cases <- as.numeric(calculate_cumulative_cases(avg_cases))
-  cumulative_cases_base <- as.numeric(calculate_cumulative_cases(avg_cases_base))
+  avg_cases_base <- as.numeric(avg_cases_per_day(cumulative_cases_baseline))
+  st_devs_base <- as.numeric(st_dev_cases_per_day(cumulative_cases_baseline))
+  margins_base <- as.numeric(margins_per_day(cumulative_cases_baseline))
+  upper_base <- avg_cases_base + margins_base
+  lower_base <- avg_cases_base - margins_base
   
   x <- 1:days
-  df <- data.frame(x, cumulative_cases, cumulative_cases_base)
+  y <- avg_cases
+  y_base <- avg_cases_base
   
-  p <- ggplot(data=df, aes(x=x)) +
-    geom_line(aes(y = cumulative_cases, colour="Intervention")) +
-    geom_point(aes(x=x, y=cumulative_cases, colour="Intervention")) +
-    geom_line(aes(y = cumulative_cases_base, colour="No Intervention")) +
-    geom_point(aes(x=x, y=cumulative_cases_base, colour="No Intervention")) +
-    scale_color_manual("",
-            breaks = c("Intervention", "No Intervention"),
-            values = c("green", "red")) +
-    xlab("Days") + 
-    ylab("Total Cases") +
-    labs(title="Predicted Number of Cumulative Cases")
-  return(p)
+  data <- data.frame(x, y, lower, upper)
+  data_base <- data.frame(x, y_base, lower_base, upper_base)
+  df <- data.frame(data, data_base)
+  
+  y_axis <- c(0:y_base[days] + 1)
+  y_axis <- which(y_axis %% 5 == 0, arr.ind = FALSE)
+  
+  p <- ggplot(data = df, aes(x = x)) +
+        geom_ribbon(aes(ymin = lower, ymax = upper), fill = "gray48", alpha = 0.4) +
+        geom_line(aes(y = y, colour="Intervention")) +
+        geom_point(aes(x=x, y=y, colour="Intervention")) +
+        geom_ribbon(aes(ymin = lower_base, ymax = upper_base), fill = "gray48", alpha = 0.4) +
+        geom_line(aes(y = y_base, colour="No Intervention")) +
+        geom_point(aes(x=x, y=y_base, colour="No Intervention")) +
+        scale_color_manual("",
+              breaks = c("Intervention", "No Intervention"),
+              values = c("green3", "red")) +
+        scale_fill_manual("",
+              breaks = c("Intervention", "No Intervention"),
+              values = c("grey41", "grey41")) +
+        scale_x_continuous(breaks=c(1:days)) +
+        scale_y_continuous(breaks=y_axis) +
+        xlab("Days") + 
+        ylab("Cumulative Cases") +
+        labs(title="Predicted Number of Cumulative Cases")
+  return(p + theme_bw())
 }
-
 # Run simulation for 40 repetitions
 cases_per_day_multiple_simulations <- run_simulation_repeated(40, initial_state, testing, no_testing, semester)
-cases_per_day_multiple_simulations_baseline <- run_simulation_repeated(40, initial_state, testing_baseline, no_testing_baseline, semester)
+cases_per_day_multiple_simulations_baseline <- run_simulation_repeated(40, initial_state_baseline, testing_baseline, no_testing_baseline, semester)
 
 # Calculate case projects per day across all 40 simulations
 total_cases <- calculate_cases_multiple_simulations(40, cases_per_day_multiple_simulations)
 total_cases_baseline <- calculate_cases_multiple_simulations(40, cases_per_day_multiple_simulations_baseline)
-
 # Reorganize case projection output for easier statistical analysis
 reorganized_cases <- reorganize_total_cases(40, total_cases)
 reorganized_cases_baseline <- reorganize_total_cases(40, total_cases_baseline)
+# Reorganize case projection output for easier statistical analysis (cumulative cases)
+cumulative_cases <- reorganize_cumulative_cases(40, total_cases)
+cumulative_cases_baseline <- reorganize_cumulative_cases(40, total_cases_baseline)
 
 # Generate projection graph with confidence intervals
 cases_per_day_graph <- generate_graph_cases_per_day(reorganized_cases, reorganized_cases_baseline)
-cumulative_cases_graph <- generate_graph_cumulative_cases(reorganized_cases, reorganized_cases_baseline)
-
+cumulative_cases_graph <- generate_graph_cumulative_cases(cumulative_cases, cumulative_cases_baseline)
 print(cases_per_day_graph)
 print(cumulative_cases_graph)
-
-#Mean Absolute Percent Error for School-Level Validation
-library(MLmetrics)
-mape_calculation <- function(total_cases) {
-  y_predict <- list()
-  y_actual <-list()
-  total_population = student_pop + faculty_pop 
-  actual_cases = 1
-  for (i in 1:40) {
-    y_predict[[length(y_predict)+1]] <- total_population - sum(as.numeric(unlist(total_cases[i])))
-    y_actual[[length(y_actual)+1]] <- total_population - actual_cases
-  }
-  #print(y_actual)
-  #print(y_pred)
-  #percent_error = mean(abs((y_true-y_pred)/y_true)) * 100
-  percent_error = MAPE(unlist(y_predict), unlist(y_actual))
-  return(percent_error)
-}
-
-mape_calculation(total_cases)
 ```
 
 ## County-Level Validation (for Internal Purposes Only)
 
 Before being able to run any validation on the county-level, please navigate to this website: https://experience.arcgis.com/experience/3d8eea39f5c1443db1743a4cb8948a9c and click the "Download Published Data" link in the top-left hand side of the GA DPH Vaccine Distribution Dashboard. An excel file titled "Georgia_DPH_PUBLIC_Vaccination_Public_Data_in_Excel.xlsx" should download. Please ensure that this file is saved to your working directory (essentially the directory where the the code for the entirety of the simulation model is located). The following code will not be able to function without completing that step. It should also be noted, that if you want the most current vaccination data, you will need to re-download this file and save it as "Georgia_DPH_PUBLIC_Vaccination_Public_Data_in_Excel.xlsx" in order for the following block of code to use the most updated data. 
 
-The contents of this file contains the percentage of fully vaccinated individuals for each county in the state of Georgia. The "vaccination_data" variable reads the excel file into R and refers to the data stored in the "COUNTY_SUMMARY" sheet. Line 806 then attaches the column headers of that sheet so that we are able to refer to the column headers by their name as opposed to vaccination_data\$HEADER_NAME (for example we can simply call "COUNTY_NAME" as opposed to vaccination_data\$COUNTY_NAME). Line 807 selects only the columns of importance to us for county-level validation which are COUNTY_NAME (which refers to column containing the county names) and PCTCUMPCVAX (which refers to the corresponding percentage of individuals who have been fully vaccinated in that county). Line 808 removes the 1st row and the 161st row as the first row is the percentage for the entire state and the 161st row corresponds to an "unknown" county. Line 812 then converts the percentages for each county to a decimal and stores the percentages for each county in a single variable known as "percent_county_vaccinated". 
-lines 814 - 822 set the initial states on the county-level. The initial susceptible population is set by calling the "initial_susceptibility" function and passes in the county_data as an input. This susceptible population is then split into vaccinated (S_0_v) and (S_0_n) using the "percent_county_vaccinated" gained from the DPH data on vaccination percentages by county. The initial infected states (I_sv, I_sn, I_av, I_an) are then determined by calling on the "initial_infected_symptomatic" and "initial_infected_asymptomatic" functions and then split between vaccinated and not vaccinated for both symptomatic and asymptomatic according the proportions specified in the vaccination data by the "percent_county_vaccinated" variable. The initial recovered unknown state is set by calling the "initial_recovered_unknown" function defined previously and passes in "county_data" as the input. Lastly, to ensure that sum of the proportions for each of these state equals 1, the county_data$total variable is instantiated and sums the previous state values. 
+The contents of this file contains the percentage of fully vaccinated individuals for each county in the state of Georgia. The `vaccination_data` variable reads the excel file into R and refers to the data stored in the "COUNTY_SUMMARY" sheet. We then attach the column headers of that sheet so that we are able to refer to the column headers by their name as opposed to vaccination_data\$HEADER_NAME (for example we can simply call "COUNTY_NAME" as opposed to vaccination_data\$COUNTY_NAME). The next line then selects only the columns of importance to us for county-level validation which are COUNTY_NAME (which refers to column containing the county names) and PCTCUMPCVAX (which refers to the corresponding percentage of individuals who have been fully vaccinated in that county). Next, the 1st row and the 161st row are removed from the data-set as the first row is the percentage for the entire state and the 161st row corresponds to an "unknown" county. We then convert the percentages for each county to a decimal and store the percentages for each county in a single variable known as "percent_county_vaccinated". 
 
-Lines 826-838 define a function called "generate_predicted_county_cases" which takes in the county_data as a parameter. It first instantiates a variable "predicted_cases" which will be used to store the predicted number of cases for each county in a list. The function then iterates through each row of the county_data (essential looping through the values for each county) using a for-loop. The first line of the for-loop, captures one row of data (or data for one county, rather) by indexing the county_data variable based on the current iteration "i". It then sets the "initial_state" variable necessary to run the simulation to the values for that specific row of data / county. Next, the instantiated baseline variable calls the "run_simulation" function, passing in the initial_state variable we just defined, and the testing, no_testing, and semester variables defined in lines 460-512. The final proportions for each state on the end of the 14 days are then captured and stored in the "two_week_state" variable by indexing the 14th row of data from the "baseline" variable. It should be noted that if you wish the validate on a county-level using a period other than 14 days, the days and semester variables would need to be updated to reflect the desired number of days, and the "two_week_state" variable would need index the baseline variables for the desired length. For example, if you wish to run validation for 28 days, the following changes would need to be made: 
+The next 8 lines of code set the initial states on the county-level. The initial susceptible population is set by calling the "initial_susceptibility" function and passes in the county_data as an input. This susceptible population is then split into vaccinated (S_0_v) and (S_0_n) using the "percent_county_vaccinated" gained from the DPH data on vaccination percentages by county. The initial infected states (I_sv, I_sn, I_av, I_an) are then determined by calling on the "initial_infected_symptomatic" and "initial_infected_asymptomatic" functions and then split between vaccinated and not vaccinated for both symptomatic and asymptomatic according the proportions specified in the vaccination data by the "percent_county_vaccinated" variable. The initial recovered unknown state is set by calling the "initial_recovered_unknown" function defined previously and passes in "county_data" as the input. Lastly, to ensure that sum of the proportions for each of these state equals 1, the county_data$total variable is instantiated and sums the previous state values. 
 
-days <- 28
+The following 12 lines then define a function called "generate_predicted_county_cases" which takes in the county_data and the number of times that you wish the run the simulation for as it's parameters. It first instantiates a variable "predicted_cases" which will be used to store the predicted number of cases for each county in a list. The function then iterates through each row of the county_data (essential looping through the values for each county) using a for-loop. The first line of the for-loop, captures one row of data (or data for one county, rather) by indexing the county_data variable based on the current iteration "i". It then sets the "initial_state" variable necessary to run the simulation to the values for that specific row of data / county. Next, the instantiated baseline variable calls the "run_simulation_repeated" function, passing in the number of times you wish to run the simulation for each county fo, initial_state variable we just defined, and the testing, no_testing, and semester variables defined in previous sections of this manual. The final proportions for each state on the end of the desired period are then captured and stored in the "two_week_state" variable by indexing the final day's row of data from the "baseline" variable. 
 
-semester <- seq(1, days, by=1)
+Next, in order to calculate the overall infection attack rate and ultimately the number of predicted cases, we need to isolate the final proportions for the susceptible state as the infection attack rate is calculated by taking the difference in proportions of the susceptible state from the start of the simulation to the end of the simulation duration. This is seen in the variable "final_susceptibility" which indexes the last day of the simulations proportion (stored in the "two_week_state" variable) and sums the proportions from the susceptible, vaccinated and susceptible, not vaccinated states to get the total proportion of the population in the susceptible state on the last day of the simulation period. The infection attack rate is then calculated and stored by summing the initial values of the susceptible states (as referred to by row\$S_0_v + row\$S_0_n) and subtracts the final susceptibility proportion "final_susceptibility". The number of cases is then calculated by taking the ceiling of the multiplication of the infection_attack_rate * the population of the county. The number of cases across each of the specified number of runs is then taken and stored in the variable 'avg_cases()' so that we can get the average predicted number of cases across multiple runs for each county.  This average number of cases is then added to the predicted cases list. This process is repeated for each county by way of the for-loop's functionality. Finally, the function returns the list of average predicted cases. It should be noted that the list returned does not have any county names associated with it, which is why a helper function which ties the contents of this list to the respective county is necessary. 
 
-two_week_state <- baseline[[28]]
+This helper function is known as "populate_predicted_county_cases" and takes in two lists as its parameters. The first list, list1, should refer to a list of county names, while the second list, list2, should refer to the list of average predicted county cases. The first line of this function instantiates a dictionary called "predicted_county_cases". The function then iterates through the contents of list1 (list of county names") and obtains a specific county name by indexing the contents of list 1 (list1[[i]]) and its predicted number of cases by indexing the contents of list 2 (list2[[i]]). The function then checks to see if the county_name key already exists in the dictionary, and it if does, it skips out of the if-statement and then adds the county_name as the key with the predicted number of cases as the value to the "predicted_county_cases" dictionary. This process is repeated for each county. It should be noted that both the county names from list 1 and the predicted cases from list 2 are stored in order so the when adding to the dictionary, the right county is in fact being paired with the correct number of predicted cases. Lastly, the dictionary is returned. The number of average predicted cases connected to it's corresponding county can be seen in the "results" variable, which calls the "populate_predicted_county_cases" function with the keys of the "counties" dictionary instantiated in previous code (which is a list of the county names only) as the first list, and the results from the "generate_predicted_county_cases(county_data, runs)" as the second list. 
 
-Next, in order to calculate the overall infection attack rate and ultimately the number of predicted cases, we need to isolate the final proportions for the susceptible state as the infection attack rate is calculated by taking the difference in proportions of the susceptible state from the start of the simulation to the end of the simulation duration. This is seen in the variable "final_susceptibility" which indexes the last day of the simulations proportion (stored in the "two_week_state" variable) and sums the proportions from the susceptible, vaccinated and susceptible, not vaccinated states to get the total proportion of the population in the susceptible state on the last day of the simulation period. The infection attack rate is then calculated and stored by summing the initial values of the susceptible states (as referred to by row\$S_0_v + row\$S_0_n) and subtracts the final susceptibility proportion "final_susceptibility". The number of cases is then calculated by taking the ceiling of the multiplication of the infection_attack_rate * the population of the county. 
+Next, we must obtain the observed number of cases. Associating the county names to their observed number of cases also uses the "populate_predicted_county_cases" function, but instead passes into the function the observed number of cases as the second list. The number of observed cases is pulled from the county-data instantiated at the beginning of this manual.
 
-Our team also decided to standardize the number of predicted and observed cases to try and account for county population, so the standardized number of cases is calculated and stored in the "standardized_number_of_cases" variable and is calculated by taking the number of cases, dividing by the county population (row\$population) and then multiplying by 100,000. This standardized number of cases is then added to the predicted cases list. This process is repeated for each county by way of the for-loop's functionality. Finally, the function returns the list of standardized predicted cases. It should be noted that the list returned does not have any county names associated with it, which is why a helper function which ties the contents of this list to the respective county is necessary. 
+The difference between the average number of predicted cases and the number of observed cases is calculated and stored in the "difference" variable. The following lines of code calculate the difference, the absolute difference, the percent error of infected individuals, and the percent error of individuals NOT infected for each county. It should be noted that both of these percent errors are calculated to account for differences in error as they relate to the population size of each county. 
 
-This helper function is known as "populate_predicted_county_cases" and takes in two lists as its parameters. The first list, list1, should refer to a list of county names, while the second list, list2, should refer to the list of standardized predicted county cases. The first line of this function instantiates a dictionary called "predicted_county_cases". The function then iterates through the contents of list1 (list of county names") and obtains a specific county name by indexing the contents of list 1 (list1[[i]]) and its predicted number of cases by indexing the contents of list 2 (list2[[i]]). The function then checks to see if the county_name key already exists in the dictionary, and it if does, it skips out of the if-statement and then adds the county_name as the key with the predicted number of cases as the value to the "predicted_county_cases" dictionary. This process is repeated for each county. It should be noted that both the county names from list 1 and the predicted cases from list 2 are stored in order so the when adding to the dictionary, the right county is in fact being paired with the correct number of predicted cases. Lastly, the dictionary is returned. The number of standardized predicted cases connected to it's corresponding county can be seen in the "results" variable, which calls the "populate_predicted_county_cases" function with the keys of the "counties" dictionary instantiated in previous code (which is a list of the county names only) as the first list, and the results from the "generate_predicted_county_cases(county_data)" as the second list. 
+Next, a data frame table is created to display the county name, the county population, the number of average predicted cases, the number of observed cases, the difference in these number of cases, the percent error of infected individuals, and the percent error of not infected individuals for each county. This is done by calling R's "matrix" function, setting the data to a list of lists using the c() function to turn the number of average predicted cases, the number of observed cases, the difference in these number of cases, and the both of the percent errors for each county into one large table. We then need to assign the county names to each row which can be done using the "rownames(table)" function which passes in the "validation_table" variable and specifies that we wish to use the county_names for the row names. We then set column names to denote which column refers to which list of data, as seen by the following line of code: 
 
-Next, we must obtain and standardize the the observed number of cases, which is completed in line 874. This line of code also uses the "populate_predicted_county_cases" function, but instead passes into the function the standardized observed number of cases as the second list. The standardized number of observed cases is calculated by multiplying the number of cases in the past 14 days for the county (county_data\$X14.day.cases), divides by the respective county population (county_data\$population), and then multiplies this by 100,000. 
+colnames(validation_table) <- c("population", "predicted", "observed", "difference", "percent_error_infected", "percent_error_not_infected")
 
-The difference between the standardized number of predicted cases and the standardized number of observed cases is calculated and stored in the "difference" variable. Lines 879-881 calculate the difference, the absolute difference, and percent error for each county. 
-
-Next, a data frame table is created to display the county name, the number of standardized predicted cases, the number of standardized observed cases, the difference in these number of cases, and the overall percent error for each county. This is done by calling R's "matrix" function, setting the data to a list of lists using the c() function to turn the number of standardized predicted cases, the number of standardized observed cases, the difference in these number of cases, and the overall percent error for each county into one large table. We then need to assign the county names to each row which can be done using the "rownames(table)" function which passes in the "validation_table" variable and specifies that we wish to use the county_names for the row names. We then set column names to denote which column refers to which list of data, as seen by the following line of code: 
-
-colnames(validation_table) <- c("predicted", "observed", "difference", "percent_error")
-
-Lastly, lines 892-893 transform the matrix into a data frame table and attach the column names to the data using the attach() function. 
+Lastly, we transform the matrix into a data frame table and attach the column names to the data using the attach() function. 
 
 Because some of the model's predictions were exactly matching the observed number of cases, some of the counties experience 0 or NaN (errored) percent error, which will not allow us to manipulated the data or run averages for the difference or percent error. For this reason, we have split the counties up by those experience 0 difference between the standardized predicted number of cases and the standardized observed number of cases (stored in the no_error_counties variables), and those experiencing differences (stored in the error_counties variable). We can then calculate the average difference and the average percent error across all counties by calling "mean(difference)" and "mean(error_counties$percent_error)". It should be noted that if the mean difference is a positive value, this indicates that the model is, on average, over-predicting the number of cases, and if the mean difference is a negative value, this indicates that the model is, on average, under-predicting the number of cases. 
 
-If you wish to calibrate the model, our suggestion is changing some of the values of the parameters specifed in 460-510. It is important to note that from previous calibration methods, the values of the beta values, gamma, masking compliance, and testing percentages seem to enact the greatest amount of change on the results of simulation model. 
+If you wish to calibrate the model, our suggestion is changing some of the values of the parameters specified in the "Specifying Initial Built-In Parameters & Defining the Initial State of the System" section of this manual. It is important to note that from previous calibration methods, the values of the beta values, gamma, masking compliance, and testing percentages seem to enact the greatest amount of change on the results of simulation model. 
 
 Lastly, a histogram of residuals which displays the frequency of the "difference" values across the counties. From the validation conducted, the most frequent differences are centered around 0 which indicates that for a majority of the counties, the model is performing well and the difference in the number of predicted cases against the observed cases is relatively low. 
 
@@ -937,10 +1063,11 @@ library(readxl)
 
 vaccination_data <- read_excel("/Users/carolinedevlin/GDPH/Georgia_DPH_PUBLIC_Vaccination_Public_Data_in_Excel.xlsx", sheet = "COUNTY_SUMMARY", col_names = TRUE)
 attach(vaccination_data)
+
 vaccination_data <- subset(vaccination_data, select = c(COUNTY_NAME, PCTCUMPCVAX))
 vaccination_data <- vaccination_data[-c(1, 161),]
-
 percent_county_vaccinated = as.numeric(vaccination_data$PCTCUMPCVAX)/100
+
 
 county_data$S_0 <- initial_susceptibility(county_data)
 county_data$S_0_v <- (county_data$S_0)*percent_county_vaccinated
@@ -952,14 +1079,15 @@ county_data$I_an <- (1 - percent_county_vaccinated)*initial_infected_asymptomati
 county_data$R_u <- initial_recovered_unknown(county_data)
 county_data$total <- county_data$S_0_v + county_data$S_0_n + county_data$I_sv + county_data$I_av + county_data$I_sn + county_data$I_an + county_data$R_u
 
-generate_predicted_county_cases <- function(county_data) {
+
+generate_predicted_county_cases <- function(county_data, runs) {
   predicted_cases <- c()
   for (i in 1:nrow(county_data)) {
     row <- county_data[i,]
     initial_state <- c(S_0_v = row$S_0_v, S_0_n = row$S_0_n, I_av = row$I_av,  I_an = row$I_an, I_sv = row$I_sv, I_sn = row$I_sn, TFN_a = TFN_a, TFN_s = TFN_s, TISO_an = TISO_an, TISO_sn = TISO_sn, TISO_ap = TISO_ap, TISO_sp = TISO_sp, RC = R_c, RU = row$R_u)
-    baseline <- run_simulation_repeated(10, initial_state, testing, no_testing, semester)
+    baseline <- run_simulation_repeated(runs, initial_state, testing, no_testing, semester)
     cases <- c()
-    for (i in range(1:10)){
+    for (i in range(1:runs)){
       two_week_state <- baseline[[i]][[days]]
       final_susceptibility <- two_week_state["S_0_v"] + two_week_state["S_0_n"]
       infection_attack_rate <- (row$S_0_v + row$S_0_n) - final_susceptibility
@@ -978,7 +1106,6 @@ generate_predicted_county_cases <- function(county_data) {
   }
   return(predicted_cases)
 }
-
 populate_predicted_county_cases<- function(list1, list2) {
   predicted_county_cases <- hash()
   for (i in 1:length(list1)) {
@@ -991,20 +1118,18 @@ populate_predicted_county_cases<- function(list1, list2) {
   }
   return(predicted_county_cases)
 }
-
-results <- populate_predicted_county_cases(keys(counties), generate_predicted_county_cases(county_data))
-
+results <- populate_predicted_county_cases(keys(counties), generate_predicted_county_cases(county_data, 10))
 observed_cases <- populate_predicted_county_cases(keys(counties), ceiling(county_data$X14.day.cases))
-
 library(MLmetrics)
+
 # calculating percent error 
+
 difference <- values(results) - values(observed_cases)
 abs_difference <- abs(values(observed_cases) - values(results))
 percent_error_infected <- (abs_difference / values(observed_cases))*100
-
 percent_error_not_infected <- abs(((county_data$population - values(observed_cases)) - (county_data$population - values(results)))/(county_data$population - values(observed_cases)))
 
-
+# creating the table
 validation_table <- matrix(data = c(county_data$population, values(results), values(observed_cases), difference, percent_error_infected, percent_error_not_infected), ncol = 6)
 rownames(validation_table) <- c(keys(results))
 colnames(validation_table) <- c("population", "predicted", "observed", "difference", "percent_error_infected", "percent_error_not_infected")
@@ -1012,17 +1137,18 @@ validation_table <- as.data.frame(validation_table)
 attach(validation_table)
 validation_table
 
+# removing the counties that experience NaN percent error
 no_error_counties <- validation_table[validation_table$difference == 0, ]
-
 error_counties <- validation_table[validation_table$difference != 0, ]
-
 no_error_counties
 error_counties
 
+# calculating the mean difference and mean percent error
 mean(difference)
 mean(error_counties$percent_error_infected)
 mean(error_counties$percent_error_not_infected)
 
+# displaying the histogram of residuals
 ggplot(data = validation_table, aes(x = validation_table$difference)) +
     geom_histogram(fill = 'steelblue', color = 'black') +
     labs(title = 'Histogram of Residuals', x = 'Residuals', y = 'Frequency')
