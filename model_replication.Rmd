@@ -185,8 +185,6 @@ counties <- hash(
                   values=1:159
                 )
 
-# COLIN: this function can be called with all of the user inputted data and returns a dictionary for that school
-# Use this function to get county hash with user inputted data (pcr should be a boolean true if pcr selected, false otherwise)
 generate_school <- function(county, days, masking, student_pop, faculty_pop, student_vax, faculty_vax, testing, pcr, elem) {
   school <- hash()
   school["county"]           <- county
@@ -230,13 +228,13 @@ initial_recovered_unknown <- function(county_data) {
 
 county <- "Fulton"
 days <- 14
-masking <- 0.0
-testing <- 0.0
+masking <- 0.5
+testing <- 0.5
 pcr <- TRUE
 student_pop <- 1400
 faculty_pop <- 14
-VR_s <- 0.0
-VR_f <- 0.0
+VR_s <- 0.1
+VR_f <- 0.2
 elem <- FALSE
 
 students_vaccinated <- student_pop * VR_s
@@ -261,10 +259,10 @@ single_county_data <- county_data[values(counties, key=c(county)),]
 ```{r}
 # Initial built-in parameters
 # The 40 found in the beta initialization signifies the simulation will run 40 times. If you would like to run it for a different number of iterations, change the values here.
-b_1 = runif(10, 0.051, 0.068)          # transmission rate due to contact between susceptible vaccinated and infected asymptomatic patient
-b_2 = runif(10, 0.102, 0.136)          # transmission rate due to contact between susceptible vaccinated and infected symptomatic patient
-b_3 = runif(10, 0.150, 0.200)          # transmission rate due to contact between susceptible not vaccinated and infected asymptomatic patient
-b_4 = runif(10, 0.300, 0.400)          # transmission rate due to contact between susceptible not vaccinated and infected symptomatic patient
+b_1 = runif(40, 0.051, 0.068)          # transmission rate due to contact between susceptible vaccinated and infected asymptomatic patient
+b_2 = runif(40, 0.102, 0.136)          # transmission rate due to contact between susceptible vaccinated and infected symptomatic patient
+b_3 = runif(40, 0.150, 0.200)          # transmission rate due to contact between susceptible not vaccinated and infected asymptomatic patient
+b_4 = runif(40, 0.300, 0.400)          # transmission rate due to contact between susceptible not vaccinated and infected symptomatic patient
 gamma = 0.1        # rate of recovery for an infected individual
 p0 = 0.7           # proportion of infections that are symptomatic
 c_a = 1            # isolation compliance asymptomatic infected + tested patients
@@ -339,9 +337,6 @@ no_testing_baseline <- c(b_1 = b_1[1], b_2 = b_2[1], b_3 = b_3[1], b_4 = b_4[1],
 
 # Initial state of the system (no intervention strategies)
 initial_state_baseline <- c(S_0_v = 0, S_0_n = S_0_n + S_0_v, I_av = 0, I_an = I_an + I_av, I_sv = 0, I_sn = I_sn + I_sv, TFN_a = TFN_a, TFN_s = TFN_s, TISO_an = TISO_an, TISO_sn = TISO_sn, TISO_ap = TISO_ap, TISO_sp = TISO_sp, RC = R_c, RU = R_u)
-
-print(initial_state)
-print(initial_state_baseline)
 ```
 
 
@@ -421,7 +416,6 @@ RU_dot <- function(gamma, I_av, I_an, I_sv, I_sn, TFN_a, TFN_s) {
 
 ```{r}
 # Define generic differential update function
-
 differentials <- function(t, state, parameters) {
   with(as.list(c(state, parameters)), {
     dS_v <- S_dot_v(b_1, MC.masking, S_0_v, I_av, TFN_a, TISO_an, b_2, I_sv, TFN_s, TISO_sn)
@@ -627,10 +621,12 @@ generate_graph_cases_per_day <- function(reorganized_cases, reorganized_cases_ba
         scale_color_manual("",
               breaks = c("Intervention", "No Intervention"),
               values = c("green", "red")) +
+        scale_x_continuous(breaks=c(1:days)) +
+        scale_y_continuous(breaks=c(1:(y_base[days] + 1))) +
         xlab("Days") + 
         ylab("Number of Cases") +
         labs(title="Predicted Number of new Cases per Day")
-  return(p)
+  return(p + theme_bw())
 }
 
 # Use this function to graph cumulative cases over days in simulation. Returns graph as object
@@ -656,6 +652,9 @@ generate_graph_cumulative_cases <- function(cumulative_cases, cumulative_cases_b
   data_base <- data.frame(x, y_base, lower_base, upper_base)
   df <- data.frame(data, data_base)
   
+  y_axis <- c(0:y_base[days] + 1)
+  y_axis <- which(y_axis %% 5 == 0, arr.ind = FALSE)
+  
   p <- ggplot(data = df, aes(x = x)) +
         geom_line(aes(y = y, colour="Intervention")) +
         geom_point(aes(x=x, y=y, colour="Intervention")) +
@@ -666,27 +665,32 @@ generate_graph_cumulative_cases <- function(cumulative_cases, cumulative_cases_b
         scale_color_manual("",
               breaks = c("Intervention", "No Intervention"),
               values = c("green", "red")) +
+        scale_fill_manual("",
+              breaks = c("Intervention", "No Intervention"),
+              values = c("grey41", "grey41")) +
+        scale_x_continuous(breaks=c(1:days)) +
+        scale_y_continuous(breaks=y_axis) +
         xlab("Days") + 
         ylab("Cumulative Cases") +
         labs(title="Predicted Number of Cumulative Cases")
-  return(p)
+  return(p + theme_bw())
 }
 
 # Run simulation for 40 repetitions
-cases_per_day_multiple_simulations <- run_simulation_repeated(10, initial_state, testing, no_testing, semester)
-cases_per_day_multiple_simulations_baseline <- run_simulation_repeated(10, initial_state_baseline, testing_baseline, no_testing_baseline, semester)
+cases_per_day_multiple_simulations <- run_simulation_repeated(40, initial_state, testing, no_testing, semester)
+cases_per_day_multiple_simulations_baseline <- run_simulation_repeated(40, initial_state_baseline, testing_baseline, no_testing_baseline, semester)
 
 # Calculate case projects per day across all 40 simulations
-total_cases <- calculate_cases_multiple_simulations(10, cases_per_day_multiple_simulations)
-total_cases_baseline <- calculate_cases_multiple_simulations(10, cases_per_day_multiple_simulations_baseline)
+total_cases <- calculate_cases_multiple_simulations(40, cases_per_day_multiple_simulations)
+total_cases_baseline <- calculate_cases_multiple_simulations(40, cases_per_day_multiple_simulations_baseline)
 
 # Reorganize case projection output for easier statistical analysis
-reorganized_cases <- reorganize_total_cases(10, total_cases)
-reorganized_cases_baseline <- reorganize_total_cases(10, total_cases_baseline)
+reorganized_cases <- reorganize_total_cases(40, total_cases)
+reorganized_cases_baseline <- reorganize_total_cases(40, total_cases_baseline)
 
 # Reorganize case projection output for easier statistical analysis (cumulative cases)
-cumulative_cases <- reorganize_cumulative_cases(10, total_cases)
-cumulative_cases_baseline <- reorganize_cumulative_cases(10, total_cases_baseline)
+cumulative_cases <- reorganize_cumulative_cases(40, total_cases)
+cumulative_cases_baseline <- reorganize_cumulative_cases(40, total_cases_baseline)
 
 # Generate projection graph with confidence intervals
 cases_per_day_graph <- generate_graph_cases_per_day(reorganized_cases, reorganized_cases_baseline)
