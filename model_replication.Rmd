@@ -227,12 +227,12 @@ initial_recovered_unknown <- function(county_data) {
 }
 
 county <- "Fulton"
-days <- 14
+days <- 14 
 masking <- 0.5
 testing <- 0.5
 pcr <- TRUE
 student_pop <- 1400
-faculty_pop <- 14
+faculty_pop <- 28
 VR_s <- 0.1
 VR_f <- 0.2
 elem <- FALSE
@@ -336,7 +336,7 @@ testing_baseline <- c(b_1 = b_1[1], b_2 = b_2[1], b_3 = b_3[1], b_4 = b_4[1], p0
 no_testing_baseline <- c(b_1 = b_1[1], b_2 = b_2[1], b_3 = b_3[1], b_4 = b_4[1], p0 = p0, c_a = c_a, c_s = c_s, MC.masking = 0, T_pcr = 0, T_rap = 0, gamma = gamma, FNpcr_a = FNpcr_a, FNpcr_s = FNpcr_s, FNrap_a = FNrap_a, FNrap_s = FNrap_s)
 
 # Initial state of the system (no intervention strategies)
-initial_state_baseline <- c(S_0_v = 0, S_0_n = S_0_n + S_0_v, I_av = 0, I_an = I_an + I_av, I_sv = 0, I_sn = I_sn + I_sv, TFN_a = TFN_a, TFN_s = TFN_s, TISO_an = TISO_an, TISO_sn = TISO_sn, TISO_ap = TISO_ap, TISO_sp = TISO_sp, RC = R_c, RU = R_u)
+initial_state_baseline <- c(S_0_v = S_0_v, S_0_n = S_0_n, I_av = I_av, I_an = I_an, I_sv = I_sv, I_sn = I_sn, TFN_a = TFN_a, TFN_s = TFN_s, TISO_an = TISO_an, TISO_sn = TISO_sn, TISO_ap = TISO_ap, TISO_sp = TISO_sp, RC = R_c, RU = R_u)
 ```
 
 
@@ -626,7 +626,7 @@ generate_graph_cases_per_day <- function(reorganized_cases, reorganized_cases_ba
         xlab("Days") + 
         ylab("Number of Cases") +
         labs(title="Predicted Number of new Cases per Day")
-  return(p + theme_bw())
+  return(p)
 }
 
 # Use this function to graph cumulative cases over days in simulation. Returns graph as object
@@ -673,7 +673,7 @@ generate_graph_cumulative_cases <- function(cumulative_cases, cumulative_cases_b
         xlab("Days") + 
         ylab("Cumulative Cases") +
         labs(title="Predicted Number of Cumulative Cases")
-  return(p + theme_bw())
+  return(p)
 }
 
 # Run simulation for 40 repetitions
