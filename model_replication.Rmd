@@ -504,8 +504,8 @@ calculate_cumulative_cases <- function(cases_per_day) {
   cumulative_cases <- list()
   running_total <- 0
   for (i in 1:length(cases_per_day)) {
-    cumulative_cases[i] <- running_total
     running_total <- running_total + as.numeric(cases_per_day[i])
+    cumulative_cases[i] <- running_total
   }
   return(cumulative_cases)
 }
@@ -558,7 +558,7 @@ avg_cases_per_day <- function(reorganized_cases) {
   for (i in 1:days) {
     avg_case <- mean(as.numeric(reorganized_cases[[i]]))
     avg_case_decimal <- avg_case - floor(avg_case)
-    if (avg_case_decimal >= 0.5) {
+    if (avg_case_decimal >= 0.7) {
       avg_case_int <- as.numeric(ceiling(avg_case))
     } else {
       avg_case_int <- as.numeric(floor(avg_case))
@@ -604,20 +604,20 @@ generate_graph_cases_per_day <- function(reorganized_cases, reorganized_cases_ba
   lower_base <- as.numeric(avgs_base) + as.numeric(margins_base)
   
   x <- 1:days
-  y <- as.numeric(avg_cases_per_day(reorganized_cases))
-  y_base <- as.numeric(avg_cases_per_day(reorganized_cases_baseline))
+  y <- as.numeric(avgs)
+  y_base <- as.numeric(avgs_base)
   
   data <- data.frame(x, y, lower, upper)
   data_base <- data.frame(x, y_base, lower_base, upper_base)
   df <- data.frame(data, data_base)
   
   p <- ggplot(data = df, aes(x = x)) +
+        geom_ribbon(aes(ymin = lower, ymax = upper), fill = "gray48", alpha = 0.4) +
         geom_line(aes(y = y, colour="Intervention")) +
         geom_point(aes(x=x, y=y, colour="Intervention")) +
-        geom_ribbon(aes(ymin = lower, ymax = upper), alpha = 0.05) +
+        geom_ribbon(aes(ymin = lower_base, ymax = upper_base), fill = "gray48", alpha = 0.4) +
         geom_line(aes(y = y_base, colour="No Intervention")) +
         geom_point(aes(x=x, y=y_base, colour="No Intervention")) +
-        geom_ribbon(aes(ymin = lower_base, ymax = upper_base), alpha = 0.05) +
         scale_color_manual("",
               breaks = c("Intervention", "No Intervention"),
               values = c("green", "red")) +
@@ -656,12 +656,12 @@ generate_graph_cumulative_cases <- function(cumulative_cases, cumulative_cases_b
   y_axis <- which(y_axis %% 5 == 0, arr.ind = FALSE)
   
   p <- ggplot(data = df, aes(x = x)) +
+        geom_ribbon(aes(ymin = lower, ymax = upper), fill = "gray48", alpha = 0.4) +
         geom_line(aes(y = y, colour="Intervention")) +
         geom_point(aes(x=x, y=y, colour="Intervention")) +
-        geom_ribbon(aes(ymin = lower, ymax = upper), alpha = 0.05) +
+        geom_ribbon(aes(ymin = lower_base, ymax = upper_base), fill = "gray48", alpha = 0.4) +
         geom_line(aes(y = y_base, colour="No Intervention")) +
         geom_point(aes(x=x, y=y_base, colour="No Intervention")) +
-        geom_ribbon(aes(ymin = lower_base, ymax = upper_base), alpha = 0.05) +
         scale_color_manual("",
               breaks = c("Intervention", "No Intervention"),
               values = c("green", "red")) +
@@ -674,6 +674,32 @@ generate_graph_cumulative_cases <- function(cumulative_cases, cumulative_cases_b
         ylab("Cumulative Cases") +
         labs(title="Predicted Number of Cumulative Cases")
   return(p)
+}
+
+generate_results_text <- function(cumulative_cases, cumulative_cases_baseline) {
+  last_day_predictions <- as.numeric(cumulative_cases[[length(cumulative_cases)]])
+  last_day_predictions_baseline <- as.numeric(cumulative_cases_baseline[[length(cumulative_cases_baseline)]])
+  
+  estimated_cases <- mean(last_day_predictions)
+  estimated_cases_baseline <- mean(last_day_predictions_baseline)
+  st_dev <- sd(last_day_predictions)
+  st_dev_baseline <- sd(last_day_predictions_baseline)
+  n <- length(last_day_predictions)
+  margin <- qt(0.975, df=n-1) * st_dev / sqrt(n)
+  margin_baseline <- qt(0.975, df=n-1) * st_dev_baseline / sqrt(n)
+  upper <- estimated_cases + margin
+  lower <- estimated_cases - margin
+  upper_baseline <- estimated_cases_baseline + margin_baseline
+  lower_baseline <- estimated_cases_baseline - margin_baseline
+  
+  results <- sprintf("At the conclusion of the simulation, the model predicts an estimated %i cases for the inputted intervention strategy against an estimated %i cases for no intervention strategies. Additionally, the number of cases for the simulation falls within [%i, %i] with 95 percent confidence for the intervention and [%i, %i] with 95 percent confidence for no intervention.",
+                     round(estimated_cases),
+                     round(estimated_cases_baseline),
+                     round(lower),
+                     round(upper),
+                     round(lower_baseline),
+                     round(upper_baseline))
+  return(results)
 }
 
 # Run simulation for 40 repetitions
@@ -696,6 +722,10 @@ cumulative_cases_baseline <- reorganize_cumulative_cases(40, total_cases_baselin
 cases_per_day_graph <- generate_graph_cases_per_day(reorganized_cases, reorganized_cases_baseline)
 cumulative_cases_graph <- generate_graph_cumulative_cases(cumulative_cases, cumulative_cases_baseline)
 
+results_string <- generate_results_text(cumulative_cases, cumulative_cases_baseline)
+
 print(cases_per_day_graph)
 print(cumulative_cases_graph)
+print(results_string)
+
 ```
