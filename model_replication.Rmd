@@ -684,21 +684,24 @@ generate_results_text <- function(cumulative_cases, cumulative_cases_baseline) {
   estimated_cases_baseline <- mean(last_day_predictions_baseline)
   st_dev <- sd(last_day_predictions)
   st_dev_baseline <- sd(last_day_predictions_baseline)
-  n <- length(last_day_predictions)
-  margin <- qt(0.975, df=n-1) * st_dev / sqrt(n)
-  margin_baseline <- qt(0.975, df=n-1) * st_dev_baseline / sqrt(n)
+  num_predictions <- length(last_day_predictions)
+  margin <- qt(0.975, df=n-1) * st_dev / sqrt(num_predictions)
+  margin_baseline <- qt(0.975, df=num_predictions-1) * st_dev_baseline / sqrt(num_predictions)
   upper <- estimated_cases + margin
   lower <- estimated_cases - margin
   upper_baseline <- estimated_cases_baseline + margin_baseline
   lower_baseline <- estimated_cases_baseline - margin_baseline
   
-  results <- sprintf("At the conclusion of the simulation, the model predicts an estimated %i cases for the inputted intervention strategy against an estimated %i cases for no intervention strategies. Additionally, the number of cases for the simulation falls within [%i, %i] with 95 percent confidence for the intervention and [%i, %i] with 95 percent confidence for no intervention.",
+  results <- sprintf("At the conclusion of the simulation, the model predicts an estimated %i cases for the inputted intervention strategy against an estimated %i cases for no intervention strategies. Additionally, the number of cases for the simulation falls within [%i, %i] with 95 percent confidence for the intervention and [%i, %i] with 95 percent confidence for no intervention. Additionally, the simulation estimates %.02f percent of school population needing to quarantine given the inputted intervention strategies and %.02f percent of the school population needing to quarantine given no intervention stategies.",
                      round(estimated_cases),
                      round(estimated_cases_baseline),
                      round(lower),
                      round(upper),
                      round(lower_baseline),
-                     round(upper_baseline))
+                     round(upper_baseline),
+                     (estimated_cases * 100) / n,
+                     (estimated_cases_baseline * 100) / n
+                     )
   return(results)
 }
 
